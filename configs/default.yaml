@@ -76,6 +76,8 @@ train:
   weight_decay: 1.0e-4
   batch_size: 32
   epochs: 50
+  patience: 5         # stop when val loss hasn't improved for this many epochs
+  num_workers: 2      # Colab has 2 CPU cores
 
 fusion:
   # Sequential fallback: provenance -> watermark -> calibrated CNN.
