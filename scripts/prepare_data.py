@@ -17,7 +17,11 @@ def main() -> None:
     d = cfg["data"]
     names = args.datasets or list(d["datasets"])
 
-    records = [r for name in names for r in index_dataset(name, d["datasets"][name]["path"])]
+    records = []
+    for name in names:
+        found, unmatched = index_dataset(name, d["datasets"][name])
+        print(f"{name}: {len(found)} labeled images, {unmatched} unmatched")
+        records.extend(found)
     records = sample_per_class(records, d["samples_per_class"], cfg["seed"])
     splits = stratified_split(records, d["split"], cfg["seed"])
 

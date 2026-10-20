@@ -4,10 +4,29 @@ seed: 42
 data:
   raw_dir: data/raw
   processed_dir: data/processed
+  # Each dataset: where it lives, its Kaggle slug, and rules that label files by
+  # their folder path (glob on the path relative to `path`, first match wins).
+  # Slugs and folder patterns are unverified guesses: run
+  # `python scripts/inspect_datasets.py` after downloading and fix them.
   datasets:
-    kannan_ai_human_art: {path: data/raw/kannan}        # ~62k, 1:1, 512px
-    superpotato9_ai_recognition: {path: data/raw/superpotato9}  # 21.6k, imbalanced, original sizes
-    ai_artbench: {path: data/raw/ai_artbench}           # 180k+, 60k human (ArtBench-10)
+    kannan_ai_human_art:          # ~62k, 1:1, 512px
+      path: data/raw/kannan
+      kaggle: kausthubkannan/ai-and-human-art-classification
+      classes:
+        - {match: "*NON_AI*", label: 0}
+        - {match: "*AI_GENERATED*", label: 1}
+    superpotato9_ai_recognition:  # 21.6k, imbalanced, original sizes
+      path: data/raw/superpotato9
+      kaggle: superpotato9/dalle-recognition-dataset
+      classes:
+        - {match: "*real*", label: 0}
+        - {match: "*fake*", label: 1}
+    ai_artbench:                  # 180k+, 60k human (ArtBench-10)
+      path: data/raw/ai_artbench
+      kaggle: ravidussilva/real-ai-art
+      classes:
+        - {match: "*AI_*", label: 1}
+        - {match: "*", label: 0}
   samples_per_class: 10000
   split: {train: 0.70, val: 0.15, test: 0.15}
   cv_folds: 5
