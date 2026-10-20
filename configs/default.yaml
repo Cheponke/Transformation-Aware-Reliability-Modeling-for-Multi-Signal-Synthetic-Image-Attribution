@@ -1,0 +1,61 @@
+# Experiment settings taken from the accepted manuscript (Chapter 3).
+seed: 42
+
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  datasets:
+    kannan_ai_human_art: {path: data/raw/kannan}        # ~62k, 1:1, 512px
+    superpotato9_ai_recognition: {path: data/raw/superpotato9}  # 21.6k, imbalanced, original sizes
+    ai_artbench: {path: data/raw/ai_artbench}           # 180k+, 60k human (ArtBench-10)
+  samples_per_class: 10000
+  split: {train: 0.70, val: 0.15, test: 0.15}
+  cv_folds: 5
+  labels: {human: 0, ai: 1}
+
+preprocess:
+  image_size: 224
+  # ImageNet statistics; replace with dataset mean/std once EDA computes them.
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+
+augment:
+  rotation_deg: 15
+  hflip: true
+  brightness: 0.2
+  contrast: 0.2
+  color_jitter: true
+
+transforms:
+  jpeg_qualities: [90, 70, 50, 30]
+  webp_qualities: [80]
+  resize_scales: [0.5, 0.25]
+  recompression_cycles: [3]
+  recompression_quality: 75
+
+watermark:
+  alpha: 4.0          # embedding strength on 0-255 pixel scale; tune for invisibility vs durability
+  key: 1234           # seed for the pseudo-random pattern W
+  threshold: 0.05     # correlation threshold for "watermark present"
+
+model:
+  architectures: [resnet50, efficientnet_b0]
+  baseline: resnet18
+  pretrained: true
+  dropout: 0.5
+
+train:
+  optimizer: adam
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  batch_size: 32
+  epochs: 50
+
+fusion:
+  # Sequential fallback: provenance -> watermark -> calibrated CNN.
+  abstain_low: 0.35   # CNN probability band [low, high] maps to "uncertain"
+  abstain_high: 0.65
+
+evaluation:
+  significance_alpha: 0.05
+  ece_bins: 15
