@@ -10,8 +10,14 @@ def test_default_rules_label_known_layouts():
     assert label_for("train/NON_AI_GENERATED", k) == 0
     assert label_for("train/AI_GENERATED", k) == 1
     a = ds["ai_artbench"]["classes"]
-    assert label_for("train/AI_SD_impressionism", a) == 1
-    assert label_for("train/impressionism", a) == 0
+    root = "Real_AI_SD_LD_Dataset"  # the real top folder, whose name contains "AI_"
+    assert label_for(f"{root}/train/AI_SD_impressionism", a) == 1
+    assert label_for(f"{root}/test/AI_LD_baroque", a) == 1
+    assert label_for(f"{root}/train/impressionism", a) == 0
+    assert label_for(f"{root}/test/ukiyo_e", a) == 0
+    s = ds["superpotato9_ai_recognition"]["classes"]
+    assert label_for("fakeV2/fake-v2", s) == 1
+    assert label_for("real", s) == 0
 
 
 def _make_dataset(root, art_image, n=6):
