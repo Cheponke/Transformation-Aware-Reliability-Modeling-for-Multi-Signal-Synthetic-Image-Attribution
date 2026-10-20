@@ -22,7 +22,13 @@ def main() -> None:
         found, unmatched = index_dataset(name, d["datasets"][name])
         print(f"{name}: {len(found)} labeled images, {unmatched} unmatched")
         records.extend(found)
-    records = sample_per_class(records, d["samples_per_class"], cfg["seed"])
+    records = sample_per_class(records, d["samples_per_class"], cfg["seed"], d.get("balance_sources", True))
+    for label in (0, 1):
+        by_source = {}
+        for r in records:
+            if r.label == label:
+                by_source[r.source] = by_source.get(r.source, 0) + 1
+        print(f"sampled label {label}: {by_source}")
     splits = stratified_split(records, d["split"], cfg["seed"])
 
     out = Path(d["processed_dir"])

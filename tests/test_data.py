@@ -49,3 +49,19 @@ def test_duplicates_detected(tmp_path, art_image):
     by_name = {r.path.split("/")[-2] + "/" + r.path.split("/")[-1]: r for r in records}
     dup = cross_split_duplicates({"train": [by_name["real/0.png"]], "test": [by_name["notes/x.png"]]})
     assert dup == {"test+train": 1}
+
+
+def test_sampling_balances_sources_and_redistributes_shortfall():
+    from attribution.data.datasets import Record
+    from attribution.data.splits import sample_per_class
+
+    records = (
+        [Record(f"a{i}", 0, "small") for i in range(10)]
+        + [Record(f"b{i}", 0, "big1") for i in range(1000)]
+        + [Record(f"c{i}", 0, "big2") for i in range(1000)]
+    )
+    out = sample_per_class(records, 100, seed=0)
+    counts = {s: sum(r.source == s for r in out) for s in ("small", "big1", "big2")}
+    assert counts == {"small": 10, "big1": 45, "big2": 45}
+    pooled = sample_per_class(records, 100, seed=0, balance_sources=False)
+    assert len(pooled) == 100
