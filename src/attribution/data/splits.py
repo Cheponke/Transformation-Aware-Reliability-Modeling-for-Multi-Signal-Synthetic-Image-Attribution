@@ -5,15 +5,26 @@ from collections import defaultdict
 from attribution.data.datasets import Record
 
 
-def sample_per_class(records: list[Record], n: int, seed: int) -> list[Record]:
-    by_label = defaultdict(list)
-    for r in records:
-        by_label[r.label].append(r)
+def sample_per_class(records: list[Record], n: int, seed: int, balance_sources: bool = True) -> list[Record]:
+    """Draw up to n records per class.
+
+    With balance_sources, each class's n is split evenly across the source
+    datasets; a dataset with too few images gives all it has and the shortfall
+    is shared among the larger ones. Otherwise the draw is from the pooled class.
+    """
     rng = random.Random(seed)
+    by_label = defaultdict(lambda: defaultdict(list))
+    for r in records:
+        by_label[r.label][r.source if balance_sources else ""].append(r)
     out = []
     for label in sorted(by_label):
-        items = by_label[label]
-        out.extend(rng.sample(items, min(n, len(items))))
+        groups = sorted(by_label[label].items(), key=lambda kv: (len(kv[1]), kv[0]))
+        remaining = n
+        for i, (_, items) in enumerate(groups):
+            quota = remaining // (len(groups) - i)
+            take = min(quota, len(items))
+            out.extend(rng.sample(items, take))
+            remaining -= take
     return out
 
 

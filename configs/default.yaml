@@ -6,10 +6,9 @@ data:
   processed_dir: data/processed
   # Each dataset: where it lives, its Kaggle slug, and rules that label files by
   # their folder path (glob on the path relative to `path`, first match wins).
-  # Slugs and folder patterns are unverified guesses: run
-  # `python scripts/inspect_datasets.py` after downloading and fix them.
+  # Checked against the real downloads with `python scripts/inspect_datasets.py`.
   datasets:
-    kannan_ai_human_art:          # ~62k, 1:1, 512px
+    kannan_ai_human_art:          # labeled train split only: 10,330 AI / 8,288 human; test/ is unlabeled
       path: data/raw/kannan
       kaggle: kausthubkannan/ai-and-human-art-classification
       classes:
@@ -28,6 +27,7 @@ data:
         - {match: "*AI_*", label: 1}
         - {match: "*", label: 0}
   samples_per_class: 10000
+  balance_sources: true    # split each class's quota evenly across datasets
   split: {train: 0.70, val: 0.15, test: 0.15}
   cv_folds: 5
   labels: {human: 0, ai: 1}
