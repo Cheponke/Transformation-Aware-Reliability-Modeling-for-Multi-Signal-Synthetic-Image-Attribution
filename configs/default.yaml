@@ -24,7 +24,7 @@ data:
       path: data/raw/ai_artbench
       kaggle: ravidussilva/real-ai-art
       classes:
-        - {match: "*AI_*", label: 1}
+        - {match: "*/AI_*", label: 1}   # style folders like AI_SD_baroque; the root folder name also contains "AI_"
         - {match: "*", label: 0}
   samples_per_class: 10000
   balance_sources: true    # split each class's quota evenly across datasets
