@@ -1,4 +1,5 @@
 """Class-balanced sampling and stratified 70/15/15 splits."""
+import csv
 import random
 from collections import defaultdict
 
@@ -82,3 +83,8 @@ def deduplicate(records: list[Record], hashes: list[str]) -> tuple[list[Record],
         kept.append(copies[0])
         removed += len(copies) - 1
     return kept, removed, conflicts
+
+
+def read_split(path) -> list[Record]:
+    with open(path) as f:
+        return [Record(r["path"], int(r["label"]), r["source"]) for r in csv.DictReader(f)]

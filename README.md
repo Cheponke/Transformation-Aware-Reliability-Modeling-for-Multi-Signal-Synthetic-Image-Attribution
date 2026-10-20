@@ -23,7 +23,7 @@ src/attribution/
   models/                   backbones, training loop, temperature scaling
   fusion/                   sequential decision logic with abstention
   evaluation/               accuracy/precision/recall/F1, FPR, ΔA, ECE, coverage
-scripts/                    download_datasets.py, inspect_datasets.py, prepare_data.py, eda.py, train.py, evaluate.py
+scripts/                    download_datasets.py, inspect_datasets.py, prepare_data.py, harmonize.py, eda.py, train.py, evaluate.py
 notebooks/                  Colab notebooks (01: data setup and EDA)
 tests/                      smoke tests
 ```
@@ -41,6 +41,7 @@ The easiest route is `notebooks/01_data_setup_and_eda.ipynb` on Colab. From a te
 python scripts/download_datasets.py   # needs ~/.kaggle/kaggle.json
 python scripts/inspect_datasets.py    # every folder should be labeled human or ai
 python scripts/prepare_data.py        # writes data/processed/{train,val,test}.csv
+python scripts/harmonize.py           # 256 px JPEG copies in data/harmonized/ (used for training)
 python scripts/eda.py                 # writes outputs/eda/report.json
 python scripts/train.py --arch resnet50
 ```

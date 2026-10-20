@@ -11,14 +11,9 @@ from pathlib import Path
 
 import numpy as np
 
-from attribution.config import load_config
-from attribution.data.datasets import Record
+from attribution.config import load_config, splits_dir
 from attribution.data.eda import channel_mean_std, class_balance, cross_split_duplicates, image_stats
-
-
-def read_split(path: Path) -> list[Record]:
-    with open(path) as f:
-        return [Record(r["path"], int(r["label"]), r["source"]) for r in csv.DictReader(f)]
+from attribution.data.splits import read_split
 
 
 def summarize(values) -> dict:
@@ -30,10 +25,11 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/default.yaml")
     ap.add_argument("--max-per-split", type=int, default=2000, help="images sampled per split for pixel stats")
-    ap.add_argument("--out", default="outputs/eda")
+    ap.add_argument("--raw", action="store_true", help="analyze the original files instead of the harmonized ones")
+    ap.add_argument("--out", default=None, help="default: outputs/eda (outputs/eda_raw with --raw)")
     args = ap.parse_args()
     cfg = load_config(args.config)
-    processed = Path(cfg["data"]["processed_dir"])
+    processed = Path(cfg["data"]["processed_dir"]) if args.raw else splits_dir(cfg)
     size = cfg["preprocess"]["image_size"]
     rng = random.Random(cfg["seed"])
 
@@ -65,7 +61,7 @@ def main() -> None:
     report["train_normalization"] = {"mean": mean, "std": std}
     report["cross_split_duplicates"] = cross_split_duplicates(splits)
 
-    out = Path(args.out)
+    out = Path(args.out or ("outputs/eda_raw" if args.raw else "outputs/eda"))
     out.mkdir(parents=True, exist_ok=True)
     (out / "report.json").write_text(json.dumps(report, indent=2))
     with open(out / "per_image.csv", "w", newline="") as f:
