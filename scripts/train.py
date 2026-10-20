@@ -20,21 +20,23 @@ def main() -> None:
     ap.add_argument("--config", default="configs/default.yaml")
     ap.add_argument("--arch", default="resnet50")
     ap.add_argument("--out", default="outputs/models")
+    ap.add_argument("--epochs", type=int, help="override train.epochs from the config")
     args = ap.parse_args()
     cfg = load_config(args.config)
     torch.manual_seed(cfg["seed"])
     device = "cuda" if torch.cuda.is_available() else "cpu"
     processed = splits_dir(cfg)
-    bs = cfg["train"]["batch_size"]
+    bs, workers = cfg["train"]["batch_size"], cfg["train"]["num_workers"]
 
     train_ds = ImageRecords(read_split(processed / "train.csv"), train_transform(cfg))
     val_ds = ImageRecords(read_split(processed / "val.csv"), eval_transform(cfg))
-    train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_ds, batch_size=bs, num_workers=4)
+    train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, num_workers=workers)
+    val_loader = DataLoader(val_ds, batch_size=bs, num_workers=workers)
 
     model = build_model(args.arch, cfg["model"]["pretrained"], cfg["model"]["dropout"])
     out_dir = Path(args.out) / args.arch
-    best = train(model, train_loader, val_loader, cfg, out_dir, device)
+    print(f"training {args.arch} on {device}: {len(train_ds)} train / {len(val_ds)} val images")
+    best = train(model, train_loader, val_loader, cfg, out_dir, device, args.epochs)
 
     model.load_state_dict(torch.load(best, map_location=device))
     logits, labels = predict_logits(model, val_loader, device)
