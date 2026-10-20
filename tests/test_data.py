@@ -71,3 +71,14 @@ def test_sampling_balances_sources_and_redistributes_shortfall():
     assert counts == {"small": 10, "big1": 45, "big2": 45}
     pooled = sample_per_class(records, 100, seed=0, balance_sources=False)
     assert len(pooled) == 100
+
+
+def test_deduplicate_keeps_one_copy_and_drops_label_conflicts():
+    from attribution.data.datasets import Record
+    from attribution.data.splits import deduplicate
+
+    records = [Record("a", 0, "s"), Record("a2", 0, "s"), Record("b", 1, "s"), Record("c", 0, "s"), Record("c2", 1, "s")]
+    hashes = ["h1", "h1", "h2", "h3", "h3"]
+    kept, removed, conflicts = deduplicate(records, hashes)
+    assert [r.path for r in kept] == ["a", "b"]
+    assert removed == 3 and conflicts == 1

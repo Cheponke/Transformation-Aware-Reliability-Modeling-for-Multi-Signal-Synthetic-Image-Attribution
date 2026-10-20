@@ -5,7 +5,8 @@ from pathlib import Path
 
 from attribution.config import load_config
 from attribution.data.datasets import index_dataset
-from attribution.data.splits import sample_per_class, stratified_split
+from attribution.data.eda import file_hash
+from attribution.data.splits import deduplicate, sample_per_class, stratified_split
 
 
 def main() -> None:
@@ -29,6 +30,8 @@ def main() -> None:
             if r.label == label:
                 by_source[r.source] = by_source.get(r.source, 0) + 1
         print(f"sampled label {label}: {by_source}")
+    records, removed, conflicts = deduplicate(records, [file_hash(r.path) for r in records])
+    print(f"removed {removed} duplicate images ({conflicts} with conflicting labels)")
     splits = stratified_split(records, d["split"], cfg["seed"])
 
     out = Path(d["processed_dir"])
