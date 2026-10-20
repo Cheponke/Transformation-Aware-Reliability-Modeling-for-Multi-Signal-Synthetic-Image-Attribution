@@ -61,3 +61,24 @@ def k_folds(records: list[Record], k: int, seed: int) -> list[list[Record]]:
         for i, r in enumerate(items):
             folds[i % k].append(r)
     return folds
+
+
+def deduplicate(records: list[Record], hashes: list[str]) -> tuple[list[Record], int, int]:
+    """Keep one copy of each byte-identical image so no image can land in two splits.
+
+    Copies that disagree on the label are dropped entirely. Returns the kept
+    records, the number of records removed, and how many of the duplicated
+    images had conflicting labels.
+    """
+    by_hash: dict[str, list[Record]] = defaultdict(list)
+    for r, h in zip(records, hashes):
+        by_hash[h].append(r)
+    kept, removed, conflicts = [], 0, 0
+    for copies in by_hash.values():
+        if len({r.label for r in copies}) > 1:
+            conflicts += 1
+            removed += len(copies)
+            continue
+        kept.append(copies[0])
+        removed += len(copies) - 1
+    return kept, removed, conflicts
