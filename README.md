@@ -10,35 +10,54 @@ social-media processing, and whether a calibrated multi-signal framework beats e
 2. **Watermark**: additive keyed pattern, `I_w = I + αW`, detected by correlation
 3. **Forensic CNN**: ResNet-50 and EfficientNet-B0 (ResNet-18 as a compression baseline), temperature-calibrated
 
-## Run
+Decisions fall back in that order, and the system abstains ("uncertain") when the CNN is not confident.
 
-Everything is in one file, `pipeline.py`: download the three Kaggle datasets, label and sample
-10k images per class, split 70/15/15, harmonize to 256 px JPEG, EDA, train, then the compression
-stress test (clean vs JPEG 90/70/50/30, WebP, downscaling, recompression).
+## Layout
 
-```bash
-python -m venv .venv
-.venv\Scripts\Activate.ps1          # Windows PowerShell; on Linux/Mac: source .venv/bin/activate
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128   # NVIDIA GPU
-pip install pillow numpy kaggle
-python pipeline.py
+```
+configs/default.yaml        all experiment settings from the manuscript
+src/attribution/
+  data/                     dataset indexing, class-balanced sampling, 70/15/15 + k-fold splits, torch Dataset
+  transforms/               JPEG / WebP / downscale / recompression conditions
+  signals/                  provenance (placeholder), watermark, forensic CNN inference
+  models/                   backbones, training loop, temperature scaling
+  fusion/                   sequential decision logic with abstention
+  evaluation/               accuracy/precision/recall/F1, FPR, ΔA, ECE, coverage
+scripts/                    download_datasets.py, inspect_datasets.py, prepare_data.py, harmonize.py, eda.py, train.py, evaluate.py
+notebooks/                  Colab notebooks (01: data setup and EDA)
+tests/                      smoke tests
 ```
 
-Put your Kaggle token at `~/.kaggle/kaggle.json` first. Finished steps are skipped, so after a
-crash just run `python pipeline.py` again. Other options:
+## Setup
 
 ```bash
-python pipeline.py --arch resnet50     # another backbone on the same data
-python pipeline.py --from train        # re-run training and the stress test
+python -m pip install -e ".[train,dev]"
+pytest
 ```
 
-Results: `outputs/stress_test/<arch>/results.csv` (accuracy, precision, recall, F1, FPR, ECE, ΔA per
-condition), training curves in `outputs/models/<arch>/history.json`, EDA in `outputs/eda/report.json`.
-All settings are constants at the top of `pipeline.py`.
+The easiest route is `notebooks/01_data_setup_and_eda.ipynb` on Colab. From a terminal:
 
-On Colab: `!git clone <this repo> && cd` into it, upload `kaggle.json` to `~/.kaggle/`, then `!python pipeline.py`.
+```bash
+python scripts/download_datasets.py   # needs ~/.kaggle/kaggle.json
+python scripts/inspect_datasets.py    # every folder should be labeled human or ai
+python scripts/prepare_data.py        # writes data/processed/{train,val,test}.csv
+python scripts/harmonize.py           # 256 px JPEG copies in data/harmonized/ (used for training)
+python scripts/eda.py                 # writes outputs/eda/report.json
+python scripts/train.py --arch resnet50
+```
 
-## Not implemented yet
+Or run everything in one go (finished steps are skipped, so it is safe to re-run after a crash):
 
-C2PA provenance, the watermark channel and the multi-signal fusion. The earlier modules for the
-watermark and fusion are in git history (before the single-file rewrite) if needed.
+```bash
+python scripts/run_all.py                  # ResNet-18 baseline: data, EDA, training, stress test
+python scripts/run_all.py --arch resnet50  # another backbone, reusing the prepared data
+python scripts/run_all.py --from train     # force training and later steps to run again
+```
+
+Labels come from the `classes` glob rules per dataset in `configs/default.yaml`. The Kaggle slugs and
+folder patterns there are unverified until the first download, so check them with `inspect_datasets.py`.
+
+## Status
+
+- Not implemented yet: C2PA signing and verification (`signals/provenance.py`) and the full evaluation run (`scripts/evaluate.py`).
+- Datasets: Kannan AI vs Human Art, Superpotato9 AI recognition, AI-ArtBench.
