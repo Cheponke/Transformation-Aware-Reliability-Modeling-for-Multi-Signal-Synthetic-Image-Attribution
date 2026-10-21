@@ -66,6 +66,13 @@ watermark:
   target_fpr: 0.01    # threshold is set so at most 1% of unmarked validation images trigger it
   threshold: 0.05     # fallback only; watermark_test.py writes the calibrated one to outputs/watermark/threshold.json
 
+provenance:
+  # Every test image is signed with a test CA: AI images declare the IPTC digital
+  # source type below, human images the human one (best case: universal adoption).
+  ai_source_type: trainedAlgorithmicMedia
+  human_source_type: digitalCreation   # made by a person with digital tools
+  softbinding_target_fpr: 0.01         # fingerprint lookup may wrongly match at most 1% of unregistered images
+
 model:
   architectures: [resnet50, efficientnet_b0]
   baseline: resnet18

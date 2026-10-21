@@ -22,7 +22,7 @@ train = [
     "matplotlib>=3.7",
     "scipy>=1.10",
 ]
-provenance = ["c2pa-python>=0.5"]
+provenance = ["c2pa-python>=0.38,<1", "cryptography>=42"]
 dev = ["pytest>=7.0"]
 
 [tool.setuptools.packages.find]

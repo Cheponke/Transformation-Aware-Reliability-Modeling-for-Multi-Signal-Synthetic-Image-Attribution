@@ -19,12 +19,12 @@ configs/default.yaml        all experiment settings from the manuscript
 src/attribution/
   data/                     dataset indexing, class-balanced sampling, 70/15/15 + k-fold splits, torch Dataset
   transforms/               JPEG / WebP / downscale / recompression conditions
-  signals/                  provenance (placeholder), watermark, forensic CNN inference
+  signals/                  provenance (C2PA signing/verification, perceptual hash), watermark, forensic CNN inference
   models/                   backbones, training loop, temperature scaling
   fusion/                   sequential decision logic with abstention
   evaluation/               accuracy/precision/recall/F1, FPR, ΔA, ECE, coverage
-scripts/                    download_datasets.py, inspect_datasets.py, prepare_data.py, harmonize.py, eda.py, train.py, stress_test.py, watermark_test.py, run_all.py, evaluate.py
-notebooks/                  Colab notebooks (01: data setup and EDA, 02: CNN training + compression stress test, 03: watermark stress test)
+scripts/                    download_datasets.py, inspect_datasets.py, prepare_data.py, harmonize.py, eda.py, train.py, stress_test.py, watermark_test.py, provenance_test.py, run_all.py, evaluate.py
+notebooks/                  Colab notebooks (01: data setup and EDA, 02: CNN training + compression stress test, 03: watermark stress test, 04: provenance stress test)
 tests/                      smoke tests
 ```
 
@@ -59,5 +59,5 @@ folder patterns there are unverified until the first download, so check them wit
 
 ## Status
 
-- Not implemented yet: C2PA signing and verification (`signals/provenance.py`) and the full evaluation run (`scripts/evaluate.py`).
+- Not implemented yet: the full evaluation run (`scripts/evaluate.py`). The provenance test needs `pip install -e ".[provenance]"` (c2pa-python).
 - Datasets: Kannan AI vs Human Art, Superpotato9 AI recognition, AI-ArtBench.
