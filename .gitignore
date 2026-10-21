@@ -222,6 +222,7 @@ __marimo__/
 # Datasets and experiment outputs
 data/raw/*
 data/processed/*
+data/harmonized/
 outputs/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
