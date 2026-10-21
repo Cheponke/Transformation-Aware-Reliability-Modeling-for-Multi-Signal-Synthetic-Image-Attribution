@@ -11,11 +11,14 @@ from PIL import Image
 Transform = Callable[[Image.Image], Image.Image]
 
 
-def _encode(img: Image.Image, fmt: str, quality: int) -> Image.Image:
+def encode(img: Image.Image, fmt: str, quality: int) -> bytes:
     buf = io.BytesIO()
     img.convert("RGB").save(buf, format=fmt, quality=quality)
-    buf.seek(0)
-    out = Image.open(buf)
+    return buf.getvalue()
+
+
+def _encode(img: Image.Image, fmt: str, quality: int) -> Image.Image:
+    out = Image.open(io.BytesIO(encode(img, fmt, quality)))
     out.load()
     return out.convert("RGB")
 
@@ -65,3 +68,19 @@ def build_conditions(cfg: dict) -> dict[str, Transform | None]:
     for c in t["recompression_cycles"]:
         conditions[f"recompress_x{c}"] = recompress(c, t["recompression_quality"])
     return conditions
+
+
+def delivery_format(condition: str, cfg: dict) -> tuple[str, int]:
+    """File format and quality a platform would serve after `condition`, for checks on the file itself (C2PA).
+
+    Resized images are served as JPEG at the harmonized quality; other conditions
+    keep the encoding they apply (re-encoding at the same quality changes little).
+    """
+    t = cfg["transforms"]
+    if condition.startswith("jpeg_q"):
+        return "JPEG", int(condition[6:])
+    if condition.startswith("webp_q"):
+        return "WEBP", int(condition[6:])
+    if condition.startswith("recompress_x"):
+        return "JPEG", t["recompression_quality"]
+    return "JPEG", cfg["preprocess"]["harmonize"]["jpeg_quality"]
