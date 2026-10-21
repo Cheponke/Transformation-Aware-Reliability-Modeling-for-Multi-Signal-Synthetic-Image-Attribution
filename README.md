@@ -23,8 +23,8 @@ src/attribution/
   models/                   backbones, training loop, temperature scaling
   fusion/                   sequential decision logic with abstention
   evaluation/               accuracy/precision/recall/F1, FPR, ΔA, ECE, coverage
-scripts/                    download_datasets.py, inspect_datasets.py, prepare_data.py, harmonize.py, eda.py, train.py, evaluate.py
-notebooks/                  Colab notebooks (01: data setup and EDA)
+scripts/                    download_datasets.py, inspect_datasets.py, prepare_data.py, harmonize.py, eda.py, train.py, stress_test.py, watermark_test.py, run_all.py, evaluate.py
+notebooks/                  Colab notebooks (01: data setup and EDA, 02: CNN training + compression stress test, 03: watermark stress test)
 tests/                      smoke tests
 ```
 
