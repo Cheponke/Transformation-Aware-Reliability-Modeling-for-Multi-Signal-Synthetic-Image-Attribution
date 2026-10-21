@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "attribution"
+version = "0.1.0"
+description = "Transformation-aware reliability modeling for multi-signal synthetic image attribution"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "pillow>=10.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+train = [
+    "torch>=2.0",
+    "torchvision>=0.15",
+    "scikit-learn>=1.3",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+    "scipy>=1.10",
+]
+provenance = ["c2pa-python>=0.5"]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
