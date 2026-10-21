@@ -61,8 +61,10 @@ transforms:
 
 watermark:
   alpha: 4.0          # embedding strength on 0-255 pixel scale; tune for invisibility vs durability
+  alphas: [2.0, 4.0, 8.0]   # strengths compared by scripts/watermark_test.py (PSNR ~42 / 36 / 30 dB)
   key: 1234           # seed for the pseudo-random pattern W
-  threshold: 0.05     # correlation threshold for "watermark present"
+  target_fpr: 0.01    # threshold is set so at most 1% of unmarked validation images trigger it
+  threshold: 0.05     # fallback only; watermark_test.py writes the calibrated one to outputs/watermark/threshold.json
 
 model:
   architectures: [resnet50, efficientnet_b0]
