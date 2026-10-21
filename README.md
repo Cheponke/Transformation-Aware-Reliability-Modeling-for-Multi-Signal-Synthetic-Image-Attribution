@@ -46,6 +46,14 @@ python scripts/eda.py                 # writes outputs/eda/report.json
 python scripts/train.py --arch resnet50
 ```
 
+Or run everything in one go (finished steps are skipped, so it is safe to re-run after a crash):
+
+```bash
+python scripts/run_all.py                  # ResNet-18 baseline: data, EDA, training, stress test
+python scripts/run_all.py --arch resnet50  # another backbone, reusing the prepared data
+python scripts/run_all.py --from train     # force training and later steps to run again
+```
+
 Labels come from the `classes` glob rules per dataset in `configs/default.yaml`. The Kaggle slugs and
 folder patterns there are unverified until the first download, so check them with `inspect_datasets.py`.
 
