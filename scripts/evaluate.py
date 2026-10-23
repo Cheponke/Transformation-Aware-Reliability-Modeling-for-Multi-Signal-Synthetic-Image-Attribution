@@ -248,111 +248,101 @@ def _prediction_rows(
 
 
 def _summarize(rows, ece_bins):
-    """Aggregate metrics by transformation condition and signal system."""
-    summary = []
-
-    conditions = list(dict.fromkeys(
-        row["condition"] for row in rows
-    ))
-
-    systems = {
-        "provenance_only": "provenance_prediction",
-        "watermark_only": "watermark_prediction",
-        "cnn_only": "cnn_prediction",
-        "multi_signal": "fusion_prediction",
-    }
-
-    for condition in conditions:
-        subset = [
-            row for row in rows
-            if row["condition"] == condition
+  """Aggregate metrics by transformation conditiona and signal system"""
+  summary = []
+  conditions = list(dict.fromkeys(row["condition"] for row in rows))
+  systems = {
+      "provenance_only": "provenance_prediction",
+      "watermark_only":"watermark_prediction",
+      "cnn_only":"cnn_prediction",
+      "multi-signal_only":"fusion_prediction",
+  }
+  for condition in conditions:
+    subset = [
+        row for row in rows if row["condition"] == condition
+    ]
+    y = [int(row["y_true"]) for row in subset]
+    for system, field in systems.items():
+      predictions = [row[field] for row in subset]
+      decided=[(true,pred,row) in zip(y, predictions, subset) if pred in ("ai","human")]
+      decided_y=[true for true, _, _ in decided]
+      decided_pred=[_binary_label(pred) for _, pred, _, in decided]
+      report=(classification_report(decided_y, decided_pred)
+        if decided
+        else {}
+              )
+      if system == "cnn_only":
+        confidences = [max(
+            float(row["cnn_prob_ai"]),
+            1.0 - float(row["cnn_prob_ai"]),
+        )
+        for _, _, row in decided
+                       ]
+      elif system == "multi_signal":
+        confidences = []
+      decided_accuracy = report.get("accuracy")
+      mean_confidence=(
+          float(np.mean(confidences))
+          if confidences
+          else None
+      )
+      confidence_accuracy_gap=(
+          mean_confidence - decided_accuracy
+          if mean_confidence is not None and decided_accuracy is not None
+          else None
+      )
+      item = {
+          "condition":condition,
+          "system":system,
+          "n":len(subset),
+          "n_decided":len(decided),
+          "n_abstained":len(subset)-len(decided),
+          "coverage": (
+              len(decided) / len(subset)
+              if subset else 0.0
+          ),
+          "accuracy": report.get("accuracy"),
+          "precision": report.get("precision"),
+          "recall": report.get("recall"),
+          "f1": report.get("f1"),
+          "fpr": report.get("fpr"),
+          "tp": report.get("tp"),
+          "tn": report.get("tn"),
+          "fp": report.get("fp"),
+          "fn": report.get("fn"),
+          "ece": None,
+          "brier_score": None,
+          "mean_confidence": mean_confidence,
+          "confidence_accuracy_gap": confidence_accuracy_gap,
+          "abstention_rate": (
+              1.0 - len(decided) / len(subset) if subset else 1.0
+          ),
+      }
+      if system == "cnn_only":
+        probs = [
+            float(row["cnn_prob_ai"])
+            for row in subset
         ]
-        y = [row["y_true"] for row in subset]
-
-        for system, field in systems.items():
-            predictions = [row[field] for row in subset]
-
-            selective = selective_report(y, predictions)
-
-            decided = [
-                (true, pred)
-                for true, pred in zip(y, predictions)
-                if pred in ("ai", "human")
-            ]
-
-            report = (
-                classification_report(
-                    [true for true, _ in decided],
-                    [
-                        _binary_label(pred)
-                        for _, pred in decided
-                    ],
-                )
-                if decided
-                else {}
-            )
-
-            item = {
-                "condition": condition,
-                "system": system,
-                "n": len(subset),
-                "coverage": float(
-                    selective.get("coverage", 0.0)
-                ),
-                "accuracy": report.get("accuracy"),
-                "precision": report.get("precision"),
-                "recall": report.get("recall"),
-                "f1": report.get("f1"),
-                "fpr": report.get("fpr"),
-                "ece": None,
-                "brier_score": None,
-                "mean_confidence": None,
-                "abstention_rate": (
-                    1.0
-                    - float(selective.get("coverage", 0.0))
-                ),
-            }
-
-            if system == "cnn_only":
-                probs = [
-                    row["cnn_prob_ai"] for row in subset
-                ]
-
-                item["ece"] = expected_calibration_error(
-                    y, probs, ece_bins
-                )
-
-                item["brier_score"] = float(
-                    np.mean(
-                        (
-                            np.asarray(probs)
-                            - np.asarray(y)
-                        ) ** 2
-                    )
-                )
-
-            elif system == "multi_signal":
-                item["ece"] = _ece_from_confidence(
-                    y,
-                    predictions,
-                    [
-                        row["fusion_confidence"]
-                        for row in subset
-                    ],
-                    ece_bins,
-                )
-
-                item["mean_confidence"] = float(
-                    np.mean([
-                        row["fusion_confidence"]
-                        for row in subset
-                    ])
-                )
-
-            summary.append(item)
-
-    return summary
-
+        item["ece"] = expected_calibration_error(
+            y, probs, ece_bins
+        )
+        item["brier_score"] = float(
+          np.mean(
+            (
+                np.asarray(probs, dtype=float)
+                - np.asarray(y, dtype=float)
+            ) ** 2
+          )
+        )
+      elif system == "multi_signal":
+        item["ece"] = _ece_from_confidence(
+            y, predictions, [
+                float(row["fusion_confidence"])
+                for row in subset
+            ], ece_bins,
+        )
+      summary.append(item)
+  return summary  
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
