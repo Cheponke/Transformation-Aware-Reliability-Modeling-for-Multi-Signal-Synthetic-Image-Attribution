@@ -1,6 +1,6 @@
 from attribution.config import load_config
-from attribution.data.datasets import index_dataset, label_for
-from attribution.data.eda import channel_mean_std, class_balance, cross_split_duplicates, image_stats
+from attribution.data.datasets import index_dataset, label_for, Record
+from attribution.data.eda import channel_mean_std, class_balance, cross_split_duplicates, image_stats, hash_distance
 from attribution.data.splits import stratified_split
 
 
@@ -82,3 +82,39 @@ def test_deduplicate_keeps_one_copy_and_drops_label_conflicts():
     kept, removed, conflicts = deduplicate(records, hashes)
     assert [r.path for r in kept] == ["a", "b"]
     assert removed == 3 and conflicts == 1
+###
+def test_perceptual_hash_distance():
+  assert_distance(12345,12345)==0
+
+def test_near_duplicates_detected_across_splits(tmp_path, art_image):
+  png_path=tmp_path / "original.png"
+  jpg_path=tmp_path / "recompressed.jpg"
+
+  art_image.convert("RGB").save(png_path, format="PNG")
+  art_image.convert("RGB").save(jpg_path, format="JPEG", quality=95)
+
+  train_record = Record(str(png_path), 0, "toy") 
+  test_record = Record(str(jpg_path), 0, "toy")
+
+  findings = cross_split_near_duplicates({
+      "train":[train_record],
+      "test": [test_record],
+  }, max_distance=5)
+
+  assert len(findings) == 1
+  assert findings[0]["split_a"] != findings[0]["split_b"]
+  assert findings[0]["hash_distance"] <= 5
+
+def test_near_duplicates_ignores_same_split(tmp_path, art_image):
+  path_a=tmp_path / "a.png"
+  path_b=tmp_path / "b.png"
+
+  art_image.save(path_a)
+  art_image.save(path_b)
+
+  record_a=Record(str(path_a),"toy")
+  record_b=Record(str(path_b), "toy")
+
+  findings = cross_split_near_duplicates({"train": [record_a,record_b],})
+
+  assert findings == []
