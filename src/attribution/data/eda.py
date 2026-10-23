@@ -75,7 +75,7 @@ def perceptual_hash(path: str) -> int:
     pixels=np.asarray(gray,dtype=np.int16)
     differences=pixels[:, 1:] > pixels[:, :-1]
     value = 0
-    for bit in differences.flattens():
+    for bit in differences.flatten():
       value = (value << 1) | int(bit)
       return value
 
@@ -93,15 +93,15 @@ def cross_split_near_duplicates(splits: dict[str, list[Record]], max_distance: i
         image_hash = perceptual_hash(record.path)
         entries.append({
             "split":split,
-            "path":record_path,
-            "label":"record_label",
-            "hash":"image_hash"
+            "path":record.path,
+            "label":record.label,
+            "hash":image_hash
         })
       except (OSError, ValueError) as exc:
         print(f"Warning could not hash {record.path}: {exc}")
   findings= []
   for i, first in enumerate(entries):
-    for second in entries[i=1:]:
+    for second in entries[i+1:]:
       if first["split"] == second["split"]:
         continue
       distance = hash_distance(first["hash"], second["hash"])
