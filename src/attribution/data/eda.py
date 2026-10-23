@@ -66,3 +66,53 @@ def cross_split_duplicates(splits: dict[str, list[Record]]) -> dict[str, int]:
         if len(split_set) > 1:
             pairs["+".join(sorted(split_set))] += 1
     return dict(pairs)
+    
+### commit
+def perceptual_hash(path: str) -> int:
+  """Compute a 64-bit difference hash for an image."""
+  with Image.open(path) as img:
+    gray=img.convert("L").resize((9,8),Image.Resampling.LANCZOS)
+    pixels=np.asarray(gray,dtype=np.int16)
+    differences=pixels[:, 1:] > pixels[:, :-1]
+    value = 0
+    for bit in differences.flattens():
+      value = (value << 1) | int(bit)
+      return value
+
+def hash_distance(hash_a: int, hash_b: int) -> int:
+  return (hash_a ^ hash_b).bit_count()
+
+def cross_split_near_duplicates(splits: dict[str, list[Record]], max_distance: int = 5,) -> list[dict]:
+  if not 0 <= max_distance <=  64:
+    raise ValueError("max distance must be between 0 and 64")
+
+  entries=[]
+  for split, records in splits.items():
+    for record in records:
+      try:
+        image_hash = perceptual_hash(record.path)
+        entries.append({
+            "split":split,
+            "path":record_path,
+            "label":"record_label",
+            "hash":"image_hash"
+        })
+      except (OSError, ValueError) as exc:
+        print(f"Warning could not hash {record.path}: {exc}")
+  findings= []
+  for i, first in enumerate(entries):
+    for second in entries[i=1:]:
+      if first["split"] == second["split"]:
+        continue
+      distance = hash_distance(first["hash"], second["hash"])
+      if distance <= max_distance:
+        findings.append({
+            "split_a":first["split"],
+            "path_a":first["path"],
+            "label_a":first["label"],
+            "split_b":second["split"],
+            "path_b":second["path"],
+            "label_b":second["label"],
+            "hash_distance":distance,
+        })
+        return findings
