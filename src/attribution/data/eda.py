@@ -77,7 +77,7 @@ def perceptual_hash(path: str) -> int:
     value = 0
     for bit in differences.flatten():
       value = (value << 1) | int(bit)
-      return value
+    return value
 
 def hash_distance(hash_a: int, hash_b: int) -> int:
   return (hash_a ^ hash_b).bit_count()
@@ -115,4 +115,4 @@ def cross_split_near_duplicates(splits: dict[str, list[Record]], max_distance: i
             "label_b":second["label"],
             "hash_distance":distance,
         })
-        return findings
+    return findings
