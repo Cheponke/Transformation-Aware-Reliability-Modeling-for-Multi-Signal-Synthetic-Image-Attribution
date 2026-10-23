@@ -33,6 +33,16 @@ def main() -> None:
     records, removed, conflicts = deduplicate(records, [file_hash(r.path) for r in records])
     print(f"removed {removed} duplicate images ({conflicts} with conflicting labels)")
     splits = stratified_split(records, d["split"], cfg["seed"])
+    
+###commit
+    near_duplicates = cross_split_near_duplicates(splits)
+    print(f"Near-duplicate pairs across splits: {len(near_duplicates)}")
+    for item in near_duplicates[:20]:
+      print(
+          f"distance={item['hash_distance']} |"
+          f"{item['split_a']} : {item['path_a']}"
+          f"{item['split_b']} : {item['path_b']}"
+      )
 
     out = Path(d["processed_dir"])
     out.mkdir(parents=True, exist_ok=True)
