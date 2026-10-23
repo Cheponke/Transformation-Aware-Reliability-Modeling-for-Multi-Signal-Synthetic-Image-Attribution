@@ -5,7 +5,7 @@ from pathlib import Path
 
 from attribution.config import load_config
 from attribution.data.datasets import index_dataset
-from attribution.data.eda import file_hash
+from attribution.data.eda import file_hash, cross_split_near_duplicates
 from attribution.data.splits import deduplicate, sample_per_class, stratified_split
 
 
@@ -36,6 +36,23 @@ def main() -> None:
     
 ###commit
     near_duplicates = cross_split_near_duplicates(splits)
+    report_path = Path("outputs/data_quality/near_duplicates.csv")
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    columns=[
+        "split_a",
+        "path_a",
+        "label_a",
+        "split_b",
+        "path_b",
+        "label_b",
+        "hash_distance",
+    ]
+    with open(report_path, "w",newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=columns)
+        writer.writeheader()
+    writer.writerows(near_duplicates)
+    print(f"Near-duplicate report saved to: {report_path}")
+    
     print(f"Near-duplicate pairs across splits: {len(near_duplicates)}")
     for item in near_duplicates[:20]:
       print(
