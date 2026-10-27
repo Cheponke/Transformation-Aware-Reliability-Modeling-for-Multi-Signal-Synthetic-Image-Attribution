@@ -23,12 +23,15 @@ value is the confidence fusion gives to watermark-based decisions.
 
 Single-channel systems abstain when their signal cannot support a decision
 (no valid credential, no watermark detected); the CNN alone always decides.
-Accuracy, F1 and ECE are computed on the images that received a decision, and
-coverage reports the share that did.
+Accuracy, precision and ECE describe the decisions a system made, and coverage
+is the share of images it decided. Recall and FPR are over all AI / all human
+images (an abstention counts as "not flagged"), so they stay meaningful for the
+watermark, which can only ever answer "AI".
 
 Writes outputs/evaluation/<arch>/{per_image.csv, summary.csv, summary.json,
 watermark_confidence.json}.
 Usage: python scripts/evaluate.py --arch resnet50 [--max-images 50] [--skip-provenance]
+       python scripts/evaluate.py --arch resnet50 --resummarize   # recompute metrics from per_image.csv
 """
 import argparse
 import csv
@@ -256,12 +259,24 @@ def _prediction_rows(records, condition_name, cfg, model, temperature, device, w
 
 
 def summarize(rows, ece_bins: int) -> list[dict]:
-    """Metrics per condition and system; classification metrics and ECE use decided images only."""
+    """Metrics per condition and system.
+
+    accuracy, precision and ECE describe the decisions a system made (abstentions
+    excluded); coverage is the share of images it decided. recall and fpr are
+    over all AI / all human images, so an abstention counts as "not flagged":
+    recall = AI images flagged as AI / all AI images,
+    fpr    = human images flagged as AI / all human images.
+    These stay meaningful for channels that can only say "AI" (the watermark),
+    where an fpr over decided images would have no true negatives. f1 combines
+    precision and this recall.
+    """
     summary = []
     conditions = list(dict.fromkeys(row["condition"] for row in rows))
     for condition in conditions:
         subset = [row for row in rows if row["condition"] == condition]
         n = len(subset)
+        n_ai = sum(int(row["y_true"]) == 1 for row in subset)
+        n_human = n - n_ai
         for system, (pred_field, conf_field) in SYSTEMS.items():
             decided = [row for row in subset if row[pred_field] in ("ai", "human")]
             y = [int(row["y_true"]) for row in decided]
@@ -269,19 +284,29 @@ def summarize(rows, ece_bins: int) -> list[dict]:
             conf = [float(row[conf_field]) for row in decided]
             report = classification_report(y, pred) if decided else {}
             accuracy = report.get("accuracy")
+            precision = report.get("precision")
+            recall = report["tp"] / n_ai if decided and n_ai else (0.0 if n_ai else None)
+            fpr = report["fp"] / n_human if decided and n_human else (0.0 if n_human else None)
+            f1 = (
+                2 * precision * recall / (precision + recall)
+                if precision is not None and recall is not None and precision + recall > 0
+                else (0.0 if decided else None)
+            )
             mean_conf = float(np.mean(conf)) if conf else None
             item = {
                 "condition": condition,
                 "system": system,
                 "n": n,
+                "n_ai": n_ai,
+                "n_human": n_human,
                 "n_decided": len(decided),
                 "n_abstained": n - len(decided),
                 "coverage": len(decided) / n if n else 0.0,
                 "accuracy": accuracy,
-                "precision": report.get("precision"),
-                "recall": report.get("recall"),
-                "f1": report.get("f1"),
-                "fpr": report.get("fpr"),
+                "precision": precision,
+                "recall": recall,
+                "f1": f1,
+                "fpr": fpr,
                 "tp": report.get("tp"),
                 "tn": report.get("tn"),
                 "fp": report.get("fp"),
@@ -321,6 +346,51 @@ def _fmt(x) -> str:
     return "-" if x is None else f"{x:.3f}"
 
 
+METRIC_NOTES = [
+    "accuracy, precision and ECE are computed on the images a system decided; coverage is the share it decided.",
+    "recall and fpr are over all AI / all human images: an abstention counts as not flagged.",
+    "f1 combines precision with that recall.",
+]
+
+
+def final_summary(rows, ece_bins: int) -> list[dict]:
+    """summarize() plus delta-A (clean accuracy minus condition accuracy, per system)."""
+    summary = summarize(rows, ece_bins)
+    clean_acc = {item["system"]: item["accuracy"] for item in summary if item["condition"] == "clean"}
+    for item in summary:
+        baseline = clean_acc.get(item["system"])
+        item["delta_a"] = (
+            float(baseline - item["accuracy"]) if baseline is not None and item["accuracy"] is not None else None
+        )
+    return summary
+
+
+def _write_csv(path: Path, data: list[dict]) -> None:
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(data[0]))
+        writer.writeheader()
+        writer.writerows(data)
+
+
+def resummarize(out_dir: Path, ece_bins: int) -> None:
+    """Recompute summary.csv / summary.json from an existing per_image.csv (no model or GPU needed)."""
+    per_image_path = out_dir / "per_image.csv"
+    if not per_image_path.is_file():
+        raise FileNotFoundError(f"{per_image_path} not found: run the full evaluation first")
+    with per_image_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    summary = final_summary(rows, ece_bins)
+    _write_csv(out_dir / "summary.csv", summary)
+    json_path = out_dir / "summary.json"
+    meta = json.loads(json_path.read_text()) if json_path.is_file() else {}
+    meta["notes"] = [n for n in meta.get("notes", []) if not n.startswith("Classification metrics")]
+    meta["notes"] = [n for n in meta["notes"] if n not in METRIC_NOTES] + METRIC_NOTES
+    meta["results"] = summary
+    meta["resummarized_from"] = str(per_image_path)
+    json_path.write_text(json.dumps(meta, indent=2))
+    print(f"Recomputed {out_dir / 'summary.csv'} and {json_path} from {per_image_path} ({len(rows)} rows)")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", default="configs/default.yaml")
@@ -336,8 +406,15 @@ def main():
     parser.add_argument("--skip-provenance", action="store_true", help="run without C2PA signing and verification")
     parser.add_argument("--watermark-confidence", type=float,
                         help="use this P(AI | watermark detected) instead of measuring it on the validation split")
+    parser.add_argument("--resummarize", action="store_true",
+                        help="only recompute summary.csv/summary.json from the existing per_image.csv in --out/--arch")
     args = parser.parse_args()
     cfg = load_config(args.config)
+    ece_bins = int(cfg["evaluation"]["ece_bins"])
+
+    if args.resummarize:
+        resummarize(Path(args.out) / args.arch, ece_bins)
+        return
 
     model_dir = Path(args.models) / args.arch
     checkpoint = model_dir / "best.pt"
@@ -438,7 +515,6 @@ def main():
         flush=True,
     )
 
-    ece_bins = int(cfg["evaluation"]["ece_bins"])
     all_rows = []
     for condition_name in conditions:
         print(f"== condition: {condition_name}", flush=True)
@@ -449,23 +525,11 @@ def main():
             print(f"  {item['system']:>15}: coverage={item['coverage']:.3f} acc={_fmt(item['accuracy'])} "
                   f"f1={_fmt(item['f1'])} fpr={_fmt(item['fpr'])} ece={_fmt(item['ece'])}", flush=True)
 
-    summary = summarize(all_rows, ece_bins)
-
-    # Delta-A is relative to clean accuracy for the same system.
-    clean_acc = {item["system"]: item["accuracy"] for item in summary if item["condition"] == "clean"}
-    for item in summary:
-        baseline = clean_acc.get(item["system"])
-        item["delta_a"] = (
-            float(baseline - item["accuracy"]) if baseline is not None and item["accuracy"] is not None else None
-        )
-
+    summary = final_summary(all_rows, ece_bins)
     per_image_path = out_dir / "per_image.csv"
     summary_path = out_dir / "summary.csv"
-    for path, data in [(per_image_path, all_rows), (summary_path, summary)]:
-        with path.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=list(data[0]))
-            writer.writeheader()
-            writer.writerows(data)
+    _write_csv(per_image_path, all_rows)
+    _write_csv(summary_path, summary)
 
     (out_dir / "summary.json").write_text(json.dumps({
         "architecture": args.arch,
@@ -487,7 +551,7 @@ def main():
             "These controlled conditions do not represent universal real-world adoption of watermarks or C2PA.",
             "Re-encoded files carry no manifest (stripping platform); soft binding is not used.",
             "Provenance-only and watermark-only systems abstain when their signal cannot support a decision.",
-            "Classification metrics and ECE are computed on decided images; coverage reports the share receiving a decision.",
+            *METRIC_NOTES,
         ],
         "results": summary,
     }, indent=2))
