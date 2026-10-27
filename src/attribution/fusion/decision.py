@@ -27,16 +27,23 @@ class Decision:
 
 
 PROVENANCE_CONFIDENCE = 0.99
-WATERMARK_CONFIDENCE = 0.95  # placeholder until estimated from watermark TPR/FPR on validation data
+# Default only. scripts/evaluate.py measures P(AI | watermark detected) on the
+# validation split (pooled over every transform condition) and passes it in.
+WATERMARK_CONFIDENCE = 0.95
 
 
-def decide(e: Evidence, abstain_low: float, abstain_high: float) -> Decision:
+def decide(
+    e: Evidence,
+    abstain_low: float,
+    abstain_high: float,
+    watermark_confidence: float = WATERMARK_CONFIDENCE,
+) -> Decision:
     p = e.provenance
     if p is not None and p.status is ProvenanceStatus.VALID and p.claims_ai is not None:
         return Decision("ai" if p.claims_ai else "human", PROVENANCE_CONFIDENCE, "provenance")
     # A missing watermark says nothing about human origin, so only a detection is used.
     if e.watermark_detected:
-        return Decision("ai", WATERMARK_CONFIDENCE, "watermark")
+        return Decision("ai", float(watermark_confidence), "watermark")
     if e.cnn_prob_ai is not None:
         q = e.cnn_prob_ai
         if abstain_low < q < abstain_high:

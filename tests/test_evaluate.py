@@ -1,0 +1,105 @@
+"""Metric aggregation in scripts/evaluate.py (the fusion evaluation)."""
+import importlib.util
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+pytest.importorskip("torch")
+pytest.importorskip("torchvision")
+
+from attribution.evaluation.metrics import expected_calibration_error  # noqa: E402
+from attribution.fusion.decision import Evidence, decide  # noqa: E402
+
+_spec = importlib.util.spec_from_file_location(
+    "evaluate_script", Path(__file__).resolve().parents[1] / "scripts" / "evaluate.py"
+)
+evaluate = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(evaluate)
+
+BAND = dict(abstain_low=0.35, abstain_high=0.65)
+
+
+def _row(y, prov="uncertain", wm="uncertain", p_ai=0.5, condition="clean", wm_conf=0.98):
+    fused = decide(
+        Evidence(
+            provenance=None if prov == "uncertain" else evaluate.prov.ProvenanceResult(
+                evaluate.prov.ProvenanceStatus.VALID, claims_ai=prov == "ai"),
+            watermark_detected=wm == "ai",
+            cnn_prob_ai=p_ai,
+        ),
+        watermark_confidence=wm_conf,
+        **BAND,
+    )
+    return {
+        "condition": condition,
+        "y_true": y,
+        "provenance_prediction": prov,
+        "watermark_prediction": wm,
+        "cnn_prediction": "ai" if p_ai >= 0.5 else "human",
+        "fusion_prediction": fused.label,
+        "fusion_source": fused.source,
+        "cnn_prob_ai": p_ai,
+        "provenance_confidence": 0.99 if prov != "uncertain" else None,
+        "watermark_confidence": wm_conf if wm == "ai" else None,
+        "cnn_confidence": max(p_ai, 1 - p_ai),
+        "fusion_confidence": fused.confidence,
+    }
+
+
+def _by_system(summary, condition="clean"):
+    return {s["system"]: s for s in summary if s["condition"] == condition}
+
+
+def test_summary_has_all_four_systems_per_condition():
+    rows = [_row(1, p_ai=0.9), _row(0, p_ai=0.1), _row(1, p_ai=0.9, condition="jpeg_q30")]
+    summary = evaluate.summarize(rows, ece_bins=15)
+    assert {(s["condition"], s["system"]) for s in summary} == {
+        (c, s) for c in ("clean", "jpeg_q30") for s in ("provenance_only", "watermark_only", "cnn_only", "multi_signal")
+    }
+
+
+def test_single_channels_abstain_and_fusion_falls_back():
+    rows = [
+        _row(1, prov="ai", wm="ai", p_ai=0.2),   # provenance decides (correctly), CNN alone is wrong
+        _row(0, prov="human", p_ai=0.8),         # provenance decides (correctly), CNN alone is wrong
+        _row(1, wm="ai", p_ai=0.4),              # watermark decides
+        _row(0, p_ai=0.1),                       # CNN decides
+        _row(1, p_ai=0.5),                       # CNN abstains -> fusion uncertain
+    ]
+    s = _by_system(evaluate.summarize(rows, ece_bins=15))
+    assert s["provenance_only"]["coverage"] == pytest.approx(2 / 5)
+    assert s["provenance_only"]["accuracy"] == 1.0
+    assert s["watermark_only"]["n_decided"] == 2
+    assert s["cnn_only"]["coverage"] == 1.0
+    assert s["cnn_only"]["accuracy"] == pytest.approx(2 / 5)  # 0.5 counts as AI: rows 4 and 5 right
+    fusion = s["multi_signal"]
+    assert fusion["n_decided"] == 4 and fusion["accuracy"] == 1.0
+    assert fusion["decided_by_provenance"] == pytest.approx(2 / 5)
+    assert fusion["decided_by_watermark"] == pytest.approx(1 / 5)
+    assert fusion["decided_by_cnn"] == pytest.approx(1 / 5)
+
+
+def test_fusion_uses_measured_watermark_confidence():
+    rows = [_row(1, wm="ai", p_ai=0.5, wm_conf=0.987)]
+    assert rows[0]["fusion_source"] == "watermark"
+    assert rows[0]["fusion_confidence"] == pytest.approx(0.987)
+    s = _by_system(evaluate.summarize(rows, ece_bins=15))
+    assert s["multi_signal"]["mean_confidence"] == pytest.approx(0.987)
+    assert s["multi_signal"]["ece"] == pytest.approx(1 - 0.987)
+
+
+def test_top_label_ece_matches_cnn_ece():
+    rng = np.random.default_rng(0)
+    y = rng.integers(0, 2, 500)
+    p = np.clip(0.5 * y + 0.25 + rng.normal(0, 0.2, 500), 0.001, 0.999)
+    pred = (p >= 0.5).astype(int)
+    conf = np.maximum(p, 1 - p)
+    assert evaluate.top_label_ece(pred == y, conf, 15) == pytest.approx(expected_calibration_error(y, p, 15))
+
+
+def test_delta_a_inputs_present_when_nothing_decided():
+    rows = [_row(1, p_ai=0.9), _row(0, p_ai=0.1)]
+    s = _by_system(evaluate.summarize(rows, ece_bins=15))
+    assert s["provenance_only"]["n_decided"] == 0
+    assert s["provenance_only"]["accuracy"] is None and s["provenance_only"]["ece"] is None
