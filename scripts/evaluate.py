@@ -163,13 +163,13 @@ class _ImageList(Dataset):
         return self.transform(self.images[index]), torch.tensor(float(self.labels[index]))
 
 
-def _deliver(record, transform, condition_name, cfg, prov_signer, prov_ctx, use_provenance):
+def _deliver(record, transform, condition_name, cfg, prov_signer, prov_ctx, use_provenance, use_watermark=True):
     """The image the channels see and the provenance result for one record under one condition."""
     alpha = float(cfg["watermark"]["alpha"])
     key = int(cfg["watermark"]["key"])
     original = _load_rgb(record.path)
-    # Simulate a generation-time watermark on AI images only.
-    marked = watermark.embed(original, alpha, key) if record.label == 1 else original
+    # Simulate a generation-time watermark on AI images only (none in the no-watermark ablation).
+    marked = watermark.embed(original, alpha, key) if use_watermark and record.label == 1 else original
 
     # The file as published (before any platform processing).
     source_bytes = encode(marked, "JPEG", int(cfg["preprocess"]["harmonize"]["jpeg_quality"]))
@@ -194,8 +194,13 @@ def _deliver(record, transform, condition_name, cfg, prov_signer, prov_ctx, use_
 
 
 def _prediction_rows(records, condition_name, cfg, model, temperature, device, watermark_threshold,
-                     watermark_confidence, prov_signer, prov_ctx, use_provenance, batch_size=64):
-    """Run all channels and the fusion rule on every record under one condition."""
+                     watermark_confidence, prov_signer, prov_ctx, use_provenance, batch_size=64,
+                     use_watermark=True):
+    """Run all channels and the fusion rule on every record under one condition.
+
+    With use_watermark=False (ablation) no image is marked and the watermark
+    channel is switched off, so fusion is provenance -> CNN.
+    """
     rows = []
     key = int(cfg["watermark"]["key"])
     transform = build_conditions(cfg)[condition_name]
@@ -205,7 +210,8 @@ def _prediction_rows(records, condition_name, cfg, model, temperature, device, w
 
     for start in range(0, len(records), batch_size):
         batch = records[start:start + batch_size]
-        delivered = [_deliver(r, transform, condition_name, cfg, prov_signer, prov_ctx, use_provenance) for r in batch]
+        delivered = [_deliver(r, transform, condition_name, cfg, prov_signer, prov_ctx, use_provenance, use_watermark)
+                     for r in batch]
         images = [img for img, _ in delivered]
 
         loader = DataLoader(_ImageList(images, [r.label for r in batch], tensor_transform),
@@ -216,6 +222,7 @@ def _prediction_rows(records, condition_name, cfg, model, temperature, device, w
         for record, (image, provenance_result), prob_ai in zip(batch, delivered, probs):
             prob_ai = float(prob_ai)
             wm_detected, wm_score = watermark.detect(image, key, watermark_threshold)
+            wm_detected = bool(wm_detected) and use_watermark  # channel off in the ablation
 
             # Hierarchical fusion: provenance -> watermark -> CNN.
             fused = decide(
@@ -250,7 +257,7 @@ def _prediction_rows(records, condition_name, cfg, model, temperature, device, w
                 "fusion_prediction": fused.label,
                 "fusion_source": fused.source,
                 "provenance_confidence": PROVENANCE_CONFIDENCE if provenance_label != "uncertain" else None,
-                "watermark_confidence": float(watermark_confidence) if wm_detected else None,
+                "watermark_confidence": float(watermark_confidence) if wm_detected and watermark_confidence is not None else None,
                 "cnn_confidence": max(prob_ai, 1.0 - prob_ai),
                 "fusion_confidence": float(fused.confidence),
                 "watermark_threshold": float(watermark_threshold),
@@ -406,14 +413,19 @@ def main():
     parser.add_argument("--skip-provenance", action="store_true", help="run without C2PA signing and verification")
     parser.add_argument("--watermark-confidence", type=float,
                         help="use this P(AI | watermark detected) instead of measuring it on the validation split")
+    parser.add_argument("--no-watermark", action="store_true",
+                        help="ablation: leave AI images unmarked and switch the watermark channel off "
+                             "(fusion = provenance -> CNN); results go to <out>/<arch>_no_watermark")
     parser.add_argument("--resummarize", action="store_true",
                         help="only recompute summary.csv/summary.json from the existing per_image.csv in --out/--arch")
     args = parser.parse_args()
     cfg = load_config(args.config)
     ece_bins = int(cfg["evaluation"]["ece_bins"])
 
+    use_watermark = not args.no_watermark
+    run_name = args.arch if use_watermark else f"{args.arch}_no_watermark"
     if args.resummarize:
-        resummarize(Path(args.out) / args.arch, ece_bins)
+        resummarize(Path(args.out) / run_name, ece_bins)
         return
 
     model_dir = Path(args.models) / args.arch
@@ -473,10 +485,12 @@ def main():
 
     alpha = float(cfg["watermark"]["alpha"])
     key = int(cfg["watermark"]["key"])
-    out_dir = Path(args.out) / args.arch
+    out_dir = Path(args.out) / run_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    if args.watermark_confidence is not None:
+    if not use_watermark:
+        wm_conf = {"confidence": None, "source": "watermark channel off (--no-watermark ablation)"}
+    elif args.watermark_confidence is not None:
         if not 0.5 <= args.watermark_confidence <= 1.0:
             parser.error("--watermark-confidence must be between 0.5 and 1")
         wm_conf = {"confidence": args.watermark_confidence, "source": "command line"}
@@ -490,7 +504,7 @@ def main():
         wm_conf["source"] = str(val_path)
         print(f"  P(AI | detected) = {wm_conf['confidence']:.4f}  (TPR {wm_conf['tpr']:.4f}, FPR {wm_conf['fpr']:.4f})", flush=True)
     (out_dir / "watermark_confidence.json").write_text(json.dumps(wm_conf, indent=1))
-    watermark_confidence = float(wm_conf["confidence"])
+    watermark_confidence = None if wm_conf["confidence"] is None else float(wm_conf["confidence"])
 
     use_provenance = not args.skip_provenance
     prov_signer = prov_ctx = None
@@ -511,7 +525,8 @@ def main():
     print(
         f"Evaluating {len(records)} images across {len(conditions)} conditions on {device}; "
         f"architecture={args.arch}; provenance={'on' if use_provenance else 'off'}; "
-        f"watermark alpha={alpha}, threshold={watermark_threshold:.5f} ({threshold_source})",
+        + (f"watermark alpha={alpha}, threshold={watermark_threshold:.5f} ({threshold_source})"
+           if use_watermark else "watermark OFF (ablation: AI images unmarked)"),
         flush=True,
     )
 
@@ -519,7 +534,8 @@ def main():
     for condition_name in conditions:
         print(f"== condition: {condition_name}", flush=True)
         rows = _prediction_rows(records, condition_name, cfg, model, temperature, device, watermark_threshold,
-                                watermark_confidence, prov_signer, prov_ctx, use_provenance, args.batch_size)
+                                watermark_confidence, prov_signer, prov_ctx, use_provenance, args.batch_size,
+                                use_watermark)
         all_rows.extend(rows)
         for item in summarize(rows, ece_bins):
             print(f"  {item['system']:>15}: coverage={item['coverage']:.3f} acc={_fmt(item['accuracy'])} "
@@ -537,7 +553,8 @@ def main():
         "n_images": len(records),
         "conditions": list(conditions),
         "temperature": temperature,
-        "watermark_alpha": alpha,
+        "watermark_enabled": use_watermark,
+        "watermark_alpha": alpha if use_watermark else None,
         "watermark_threshold": watermark_threshold,
         "watermark_threshold_source": threshold_source,
         "watermark_confidence": wm_conf,
@@ -546,7 +563,8 @@ def main():
         "c2pa_python_version": _c2pa_version() if use_provenance else None,
         "abstain_band": [float(cfg["fusion"]["abstain_low"]), float(cfg["fusion"]["abstain_high"])],
         "notes": [
-            "Watermarks are simulated on AI-labeled images only.",
+            ("Watermarks are simulated on AI-labeled images only." if use_watermark
+             else "Ablation: no image is watermarked and the watermark channel is off (fusion = provenance -> CNN)."),
             "When enabled, provenance claims are generated from ground-truth labels using a local test CA.",
             "These controlled conditions do not represent universal real-world adoption of watermarks or C2PA.",
             "Re-encoded files carry no manifest (stripping platform); soft binding is not used.",
