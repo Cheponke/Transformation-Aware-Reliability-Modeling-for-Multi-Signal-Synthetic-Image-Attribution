@@ -103,3 +103,39 @@ def test_delta_a_inputs_present_when_nothing_decided():
     s = _by_system(evaluate.summarize(rows, ece_bins=15))
     assert s["provenance_only"]["n_decided"] == 0
     assert s["provenance_only"]["accuracy"] is None and s["provenance_only"]["ece"] is None
+
+
+def test_one_sided_watermark_rates_use_all_images():
+    # 3 AI (2 detected), 4 human (1 false alarm); the watermark never says "human"
+    rows = [_row(1, wm="ai"), _row(1, wm="ai"), _row(1), _row(0, wm="ai"), _row(0), _row(0), _row(0)]
+    s = _by_system(evaluate.summarize(rows, ece_bins=15))["watermark_only"]
+    assert s["recall"] == pytest.approx(2 / 3)
+    assert s["fpr"] == pytest.approx(1 / 4)  # not 1.0, which a decided-only FPR would give
+    assert s["precision"] == pytest.approx(2 / 3)
+    assert s["f1"] == pytest.approx(2 / 3)
+
+
+def test_rates_when_channel_never_decides():
+    s = _by_system(evaluate.summarize([_row(1, p_ai=0.9), _row(0, p_ai=0.1)], ece_bins=15))["provenance_only"]
+    assert s["recall"] == 0.0 and s["fpr"] == 0.0 and s["coverage"] == 0.0
+
+
+def test_resummarize_matches_direct_summary(tmp_path):
+    import csv
+    import json
+
+    rows = [_row(1, prov="ai", p_ai=0.2), _row(0, p_ai=0.8), _row(1, wm="ai", p_ai=0.4),
+            _row(0, p_ai=0.1), _row(1, p_ai=0.5), _row(1, p_ai=0.9, condition="jpeg_q30")]
+    with (tmp_path / "per_image.csv").open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+    (tmp_path / "summary.json").write_text(json.dumps({"architecture": "x", "notes": ["keep me"]}))
+    evaluate.resummarize(tmp_path, ece_bins=15)
+    meta = json.loads((tmp_path / "summary.json").read_text())
+    assert meta["architecture"] == "x" and "keep me" in meta["notes"]
+    direct = evaluate.final_summary(rows, ece_bins=15)
+    for a, b in zip(meta["results"], direct):
+        assert a.keys() == b.keys()
+        for k in a:
+            assert a[k] == pytest.approx(b[k]) if isinstance(b[k], float) else a[k] == b[k]

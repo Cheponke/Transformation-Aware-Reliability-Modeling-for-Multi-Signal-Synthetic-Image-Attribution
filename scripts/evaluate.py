@@ -23,12 +23,15 @@ value is the confidence fusion gives to watermark-based decisions.
 
 Single-channel systems abstain when their signal cannot support a decision
 (no valid credential, no watermark detected); the CNN alone always decides.
-Accuracy, F1 and ECE are computed on the images that received a decision, and
-coverage reports the share that did.
+Accuracy, precision and ECE describe the decisions a system made, and coverage
+is the share of images it decided. Recall and FPR are over all AI / all human
+images (an abstention counts as "not flagged"), so they stay meaningful for the
+watermark, which can only ever answer "AI".
 
 Writes outputs/evaluation/<arch>/{per_image.csv, summary.csv, summary.json,
 watermark_confidence.json}.
 Usage: python scripts/evaluate.py --arch resnet50 [--max-images 50] [--skip-provenance]
+       python scripts/evaluate.py --arch resnet50 --resummarize   # recompute metrics from per_image.csv
 """
 import argparse
 import csv
@@ -160,13 +163,13 @@ class _ImageList(Dataset):
         return self.transform(self.images[index]), torch.tensor(float(self.labels[index]))
 
 
-def _deliver(record, transform, condition_name, cfg, prov_signer, prov_ctx, use_provenance):
+def _deliver(record, transform, condition_name, cfg, prov_signer, prov_ctx, use_provenance, use_watermark=True):
     """The image the channels see and the provenance result for one record under one condition."""
     alpha = float(cfg["watermark"]["alpha"])
     key = int(cfg["watermark"]["key"])
     original = _load_rgb(record.path)
-    # Simulate a generation-time watermark on AI images only.
-    marked = watermark.embed(original, alpha, key) if record.label == 1 else original
+    # Simulate a generation-time watermark on AI images only (none in the no-watermark ablation).
+    marked = watermark.embed(original, alpha, key) if use_watermark and record.label == 1 else original
 
     # The file as published (before any platform processing).
     source_bytes = encode(marked, "JPEG", int(cfg["preprocess"]["harmonize"]["jpeg_quality"]))
@@ -191,8 +194,13 @@ def _deliver(record, transform, condition_name, cfg, prov_signer, prov_ctx, use_
 
 
 def _prediction_rows(records, condition_name, cfg, model, temperature, device, watermark_threshold,
-                     watermark_confidence, prov_signer, prov_ctx, use_provenance, batch_size=64):
-    """Run all channels and the fusion rule on every record under one condition."""
+                     watermark_confidence, prov_signer, prov_ctx, use_provenance, batch_size=64,
+                     use_watermark=True):
+    """Run all channels and the fusion rule on every record under one condition.
+
+    With use_watermark=False (ablation) no image is marked and the watermark
+    channel is switched off, so fusion is provenance -> CNN.
+    """
     rows = []
     key = int(cfg["watermark"]["key"])
     transform = build_conditions(cfg)[condition_name]
@@ -202,7 +210,8 @@ def _prediction_rows(records, condition_name, cfg, model, temperature, device, w
 
     for start in range(0, len(records), batch_size):
         batch = records[start:start + batch_size]
-        delivered = [_deliver(r, transform, condition_name, cfg, prov_signer, prov_ctx, use_provenance) for r in batch]
+        delivered = [_deliver(r, transform, condition_name, cfg, prov_signer, prov_ctx, use_provenance, use_watermark)
+                     for r in batch]
         images = [img for img, _ in delivered]
 
         loader = DataLoader(_ImageList(images, [r.label for r in batch], tensor_transform),
@@ -213,6 +222,7 @@ def _prediction_rows(records, condition_name, cfg, model, temperature, device, w
         for record, (image, provenance_result), prob_ai in zip(batch, delivered, probs):
             prob_ai = float(prob_ai)
             wm_detected, wm_score = watermark.detect(image, key, watermark_threshold)
+            wm_detected = bool(wm_detected) and use_watermark  # channel off in the ablation
 
             # Hierarchical fusion: provenance -> watermark -> CNN.
             fused = decide(
@@ -247,7 +257,7 @@ def _prediction_rows(records, condition_name, cfg, model, temperature, device, w
                 "fusion_prediction": fused.label,
                 "fusion_source": fused.source,
                 "provenance_confidence": PROVENANCE_CONFIDENCE if provenance_label != "uncertain" else None,
-                "watermark_confidence": float(watermark_confidence) if wm_detected else None,
+                "watermark_confidence": float(watermark_confidence) if wm_detected and watermark_confidence is not None else None,
                 "cnn_confidence": max(prob_ai, 1.0 - prob_ai),
                 "fusion_confidence": float(fused.confidence),
                 "watermark_threshold": float(watermark_threshold),
@@ -256,12 +266,24 @@ def _prediction_rows(records, condition_name, cfg, model, temperature, device, w
 
 
 def summarize(rows, ece_bins: int) -> list[dict]:
-    """Metrics per condition and system; classification metrics and ECE use decided images only."""
+    """Metrics per condition and system.
+
+    accuracy, precision and ECE describe the decisions a system made (abstentions
+    excluded); coverage is the share of images it decided. recall and fpr are
+    over all AI / all human images, so an abstention counts as "not flagged":
+    recall = AI images flagged as AI / all AI images,
+    fpr    = human images flagged as AI / all human images.
+    These stay meaningful for channels that can only say "AI" (the watermark),
+    where an fpr over decided images would have no true negatives. f1 combines
+    precision and this recall.
+    """
     summary = []
     conditions = list(dict.fromkeys(row["condition"] for row in rows))
     for condition in conditions:
         subset = [row for row in rows if row["condition"] == condition]
         n = len(subset)
+        n_ai = sum(int(row["y_true"]) == 1 for row in subset)
+        n_human = n - n_ai
         for system, (pred_field, conf_field) in SYSTEMS.items():
             decided = [row for row in subset if row[pred_field] in ("ai", "human")]
             y = [int(row["y_true"]) for row in decided]
@@ -269,19 +291,29 @@ def summarize(rows, ece_bins: int) -> list[dict]:
             conf = [float(row[conf_field]) for row in decided]
             report = classification_report(y, pred) if decided else {}
             accuracy = report.get("accuracy")
+            precision = report.get("precision")
+            recall = report["tp"] / n_ai if decided and n_ai else (0.0 if n_ai else None)
+            fpr = report["fp"] / n_human if decided and n_human else (0.0 if n_human else None)
+            f1 = (
+                2 * precision * recall / (precision + recall)
+                if precision is not None and recall is not None and precision + recall > 0
+                else (0.0 if decided else None)
+            )
             mean_conf = float(np.mean(conf)) if conf else None
             item = {
                 "condition": condition,
                 "system": system,
                 "n": n,
+                "n_ai": n_ai,
+                "n_human": n_human,
                 "n_decided": len(decided),
                 "n_abstained": n - len(decided),
                 "coverage": len(decided) / n if n else 0.0,
                 "accuracy": accuracy,
-                "precision": report.get("precision"),
-                "recall": report.get("recall"),
-                "f1": report.get("f1"),
-                "fpr": report.get("fpr"),
+                "precision": precision,
+                "recall": recall,
+                "f1": f1,
+                "fpr": fpr,
                 "tp": report.get("tp"),
                 "tn": report.get("tn"),
                 "fp": report.get("fp"),
@@ -321,6 +353,51 @@ def _fmt(x) -> str:
     return "-" if x is None else f"{x:.3f}"
 
 
+METRIC_NOTES = [
+    "accuracy, precision and ECE are computed on the images a system decided; coverage is the share it decided.",
+    "recall and fpr are over all AI / all human images: an abstention counts as not flagged.",
+    "f1 combines precision with that recall.",
+]
+
+
+def final_summary(rows, ece_bins: int) -> list[dict]:
+    """summarize() plus delta-A (clean accuracy minus condition accuracy, per system)."""
+    summary = summarize(rows, ece_bins)
+    clean_acc = {item["system"]: item["accuracy"] for item in summary if item["condition"] == "clean"}
+    for item in summary:
+        baseline = clean_acc.get(item["system"])
+        item["delta_a"] = (
+            float(baseline - item["accuracy"]) if baseline is not None and item["accuracy"] is not None else None
+        )
+    return summary
+
+
+def _write_csv(path: Path, data: list[dict]) -> None:
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(data[0]))
+        writer.writeheader()
+        writer.writerows(data)
+
+
+def resummarize(out_dir: Path, ece_bins: int) -> None:
+    """Recompute summary.csv / summary.json from an existing per_image.csv (no model or GPU needed)."""
+    per_image_path = out_dir / "per_image.csv"
+    if not per_image_path.is_file():
+        raise FileNotFoundError(f"{per_image_path} not found: run the full evaluation first")
+    with per_image_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    summary = final_summary(rows, ece_bins)
+    _write_csv(out_dir / "summary.csv", summary)
+    json_path = out_dir / "summary.json"
+    meta = json.loads(json_path.read_text()) if json_path.is_file() else {}
+    meta["notes"] = [n for n in meta.get("notes", []) if not n.startswith("Classification metrics")]
+    meta["notes"] = [n for n in meta["notes"] if n not in METRIC_NOTES] + METRIC_NOTES
+    meta["results"] = summary
+    meta["resummarized_from"] = str(per_image_path)
+    json_path.write_text(json.dumps(meta, indent=2))
+    print(f"Recomputed {out_dir / 'summary.csv'} and {json_path} from {per_image_path} ({len(rows)} rows)")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", default="configs/default.yaml")
@@ -336,8 +413,20 @@ def main():
     parser.add_argument("--skip-provenance", action="store_true", help="run without C2PA signing and verification")
     parser.add_argument("--watermark-confidence", type=float,
                         help="use this P(AI | watermark detected) instead of measuring it on the validation split")
+    parser.add_argument("--no-watermark", action="store_true",
+                        help="ablation: leave AI images unmarked and switch the watermark channel off "
+                             "(fusion = provenance -> CNN); results go to <out>/<arch>_no_watermark")
+    parser.add_argument("--resummarize", action="store_true",
+                        help="only recompute summary.csv/summary.json from the existing per_image.csv in --out/--arch")
     args = parser.parse_args()
     cfg = load_config(args.config)
+    ece_bins = int(cfg["evaluation"]["ece_bins"])
+
+    use_watermark = not args.no_watermark
+    run_name = args.arch if use_watermark else f"{args.arch}_no_watermark"
+    if args.resummarize:
+        resummarize(Path(args.out) / run_name, ece_bins)
+        return
 
     model_dir = Path(args.models) / args.arch
     checkpoint = model_dir / "best.pt"
@@ -396,10 +485,12 @@ def main():
 
     alpha = float(cfg["watermark"]["alpha"])
     key = int(cfg["watermark"]["key"])
-    out_dir = Path(args.out) / args.arch
+    out_dir = Path(args.out) / run_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    if args.watermark_confidence is not None:
+    if not use_watermark:
+        wm_conf = {"confidence": None, "source": "watermark channel off (--no-watermark ablation)"}
+    elif args.watermark_confidence is not None:
         if not 0.5 <= args.watermark_confidence <= 1.0:
             parser.error("--watermark-confidence must be between 0.5 and 1")
         wm_conf = {"confidence": args.watermark_confidence, "source": "command line"}
@@ -413,7 +504,7 @@ def main():
         wm_conf["source"] = str(val_path)
         print(f"  P(AI | detected) = {wm_conf['confidence']:.4f}  (TPR {wm_conf['tpr']:.4f}, FPR {wm_conf['fpr']:.4f})", flush=True)
     (out_dir / "watermark_confidence.json").write_text(json.dumps(wm_conf, indent=1))
-    watermark_confidence = float(wm_conf["confidence"])
+    watermark_confidence = None if wm_conf["confidence"] is None else float(wm_conf["confidence"])
 
     use_provenance = not args.skip_provenance
     prov_signer = prov_ctx = None
@@ -434,38 +525,27 @@ def main():
     print(
         f"Evaluating {len(records)} images across {len(conditions)} conditions on {device}; "
         f"architecture={args.arch}; provenance={'on' if use_provenance else 'off'}; "
-        f"watermark alpha={alpha}, threshold={watermark_threshold:.5f} ({threshold_source})",
+        + (f"watermark alpha={alpha}, threshold={watermark_threshold:.5f} ({threshold_source})"
+           if use_watermark else "watermark OFF (ablation: AI images unmarked)"),
         flush=True,
     )
 
-    ece_bins = int(cfg["evaluation"]["ece_bins"])
     all_rows = []
     for condition_name in conditions:
         print(f"== condition: {condition_name}", flush=True)
         rows = _prediction_rows(records, condition_name, cfg, model, temperature, device, watermark_threshold,
-                                watermark_confidence, prov_signer, prov_ctx, use_provenance, args.batch_size)
+                                watermark_confidence, prov_signer, prov_ctx, use_provenance, args.batch_size,
+                                use_watermark)
         all_rows.extend(rows)
         for item in summarize(rows, ece_bins):
             print(f"  {item['system']:>15}: coverage={item['coverage']:.3f} acc={_fmt(item['accuracy'])} "
                   f"f1={_fmt(item['f1'])} fpr={_fmt(item['fpr'])} ece={_fmt(item['ece'])}", flush=True)
 
-    summary = summarize(all_rows, ece_bins)
-
-    # Delta-A is relative to clean accuracy for the same system.
-    clean_acc = {item["system"]: item["accuracy"] for item in summary if item["condition"] == "clean"}
-    for item in summary:
-        baseline = clean_acc.get(item["system"])
-        item["delta_a"] = (
-            float(baseline - item["accuracy"]) if baseline is not None and item["accuracy"] is not None else None
-        )
-
+    summary = final_summary(all_rows, ece_bins)
     per_image_path = out_dir / "per_image.csv"
     summary_path = out_dir / "summary.csv"
-    for path, data in [(per_image_path, all_rows), (summary_path, summary)]:
-        with path.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=list(data[0]))
-            writer.writeheader()
-            writer.writerows(data)
+    _write_csv(per_image_path, all_rows)
+    _write_csv(summary_path, summary)
 
     (out_dir / "summary.json").write_text(json.dumps({
         "architecture": args.arch,
@@ -473,7 +553,8 @@ def main():
         "n_images": len(records),
         "conditions": list(conditions),
         "temperature": temperature,
-        "watermark_alpha": alpha,
+        "watermark_enabled": use_watermark,
+        "watermark_alpha": alpha if use_watermark else None,
         "watermark_threshold": watermark_threshold,
         "watermark_threshold_source": threshold_source,
         "watermark_confidence": wm_conf,
@@ -482,12 +563,13 @@ def main():
         "c2pa_python_version": _c2pa_version() if use_provenance else None,
         "abstain_band": [float(cfg["fusion"]["abstain_low"]), float(cfg["fusion"]["abstain_high"])],
         "notes": [
-            "Watermarks are simulated on AI-labeled images only.",
+            ("Watermarks are simulated on AI-labeled images only." if use_watermark
+             else "Ablation: no image is watermarked and the watermark channel is off (fusion = provenance -> CNN)."),
             "When enabled, provenance claims are generated from ground-truth labels using a local test CA.",
             "These controlled conditions do not represent universal real-world adoption of watermarks or C2PA.",
             "Re-encoded files carry no manifest (stripping platform); soft binding is not used.",
             "Provenance-only and watermark-only systems abstain when their signal cannot support a decision.",
-            "Classification metrics and ECE are computed on decided images; coverage reports the share receiving a decision.",
+            *METRIC_NOTES,
         ],
         "results": summary,
     }, indent=2))
