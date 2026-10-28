@@ -60,8 +60,6 @@ folder patterns there are unverified until the first download, so check them wit
 ## Status
 ### Implemented in the current version as of October 28, 2026
 
-- **src/attribute/evaluation/statistics.py** is subject to be changed. 
-
 - **Dataset Preparation:** Dataset inspection, label handling, exploratory data analysis, train/validation/test split, and PyTorch dataset loading.
 - **Image Transformation:**  Utilities for simulating image transformations such as social-media processing, JPEG compression, WebP conversion, resizing, and recompression.
 - **Provenance Signal:** C2PA credential creation, signing, and verification utilities.
