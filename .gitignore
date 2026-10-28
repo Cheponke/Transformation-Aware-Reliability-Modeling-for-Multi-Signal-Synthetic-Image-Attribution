@@ -223,8 +223,30 @@ __marimo__/
 data/raw/*
 data/processed/*
 data/harmonized/
-outputs/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
-!outputs/.gitkeep
 *.pt
+
+# Experiment outputs: everything under outputs/ is ignored except the small
+# summary files that notebooks/06_collect_results.ipynb gathers from Drive.
+# Model checkpoints (*.pt above), per-image CSVs and anything else stay out.
+# Keep this list in sync with PATTERNS in notebook 06.
+outputs/**
+!outputs/**/
+!outputs/.gitkeep
+!outputs/MANIFEST.json
+!outputs/models/*/calibration.json
+!outputs/models/*/history.json
+!outputs/stress_test/*/results.csv
+!outputs/stress_test/*/results.json
+!outputs/watermark/threshold.json
+!outputs/watermark/results.csv
+!outputs/provenance/results.csv
+!outputs/provenance/attacks.csv
+!outputs/provenance/softbinding.json
+!outputs/evaluation/*/summary.csv
+!outputs/evaluation/*/summary.json
+!outputs/evaluation/*/watermark_confidence.json
+!outputs/splits/train.csv
+!outputs/splits/val.csv
+!outputs/splits/test.csv
