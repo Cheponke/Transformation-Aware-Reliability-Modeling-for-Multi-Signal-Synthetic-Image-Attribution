@@ -1,6 +1,15 @@
 from attribution.config import load_config
 from attribution.data.datasets import index_dataset, label_for, Record
-from attribution.data.eda import channel_mean_std, class_balance, cross_split_duplicates, image_stats, hash_distance
+from attribution.data.eda import (
+    channel_mean_std,
+    class_balance,
+    cross_split_duplicates,
+    cross_split_near_duplicates,
+    hash_distance,
+    image_stats,
+    near_duplicate_summary,
+    perceptual_hash,
+)
 from attribution.data.splits import stratified_split
 
 
@@ -82,39 +91,81 @@ def test_deduplicate_keeps_one_copy_and_drops_label_conflicts():
     kept, removed, conflicts = deduplicate(records, hashes)
     assert [r.path for r in kept] == ["a", "b"]
     assert removed == 3 and conflicts == 1
-###
+
+
 def test_perceptual_hash_distance():
-  assert_distance(12345,12345)==0
+    assert hash_distance(12345, 12345) == 0
+    assert hash_distance(0b1011, 0b0001) == 2
+    assert hash_distance(0, 2**64 - 1) == 64
+
 
 def test_near_duplicates_detected_across_splits(tmp_path, art_image):
-  png_path=tmp_path / "original.png"
-  jpg_path=tmp_path / "recompressed.jpg"
+    png_path = tmp_path / "original.png"
+    jpg_path = tmp_path / "recompressed.jpg"
+    art_image.convert("RGB").save(png_path, format="PNG")
+    art_image.convert("RGB").save(jpg_path, format="JPEG", quality=95)
 
-  art_image.convert("RGB").save(png_path, format="PNG")
-  art_image.convert("RGB").save(jpg_path, format="JPEG", quality=95)
+    findings = cross_split_near_duplicates(
+        {"train": [Record(str(png_path), 0, "toy")], "test": [Record(str(jpg_path), 0, "toy")]},
+        max_distance=5,
+    )
+    assert len(findings) == 1
+    assert findings[0]["split_a"] != findings[0]["split_b"]
+    assert findings[0]["hash_distance"] <= 5
 
-  train_record = Record(str(png_path), 0, "toy") 
-  test_record = Record(str(jpg_path), 0, "toy")
-
-  findings = cross_split_near_duplicates({
-      "train":[train_record],
-      "test": [test_record],
-  }, max_distance=5)
-
-  assert len(findings) == 1
-  assert findings[0]["split_a"] != findings[0]["split_b"]
-  assert findings[0]["hash_distance"] <= 5
 
 def test_near_duplicates_ignores_same_split(tmp_path, art_image):
-  path_a=tmp_path / "a.png"
-  path_b=tmp_path / "b.png"
+    path_a, path_b = tmp_path / "a.png", tmp_path / "b.png"
+    art_image.save(path_a)
+    art_image.save(path_b)
+    findings = cross_split_near_duplicates({"train": [Record(str(path_a), 0, "toy"), Record(str(path_b), 0, "toy")]})
+    assert findings == []
 
-  art_image.save(path_a)
-  art_image.save(path_b)
 
-  record_a=Record(str(path_a),"toy")
-  record_b=Record(str(path_b), "toy")
+def test_near_duplicates_match_brute_force_and_summary(tmp_path, art_image):
+    """The vectorized search finds exactly the pairs a pairwise loop would, across every split pair."""
+    import numpy as np
+    from PIL import Image
 
-  findings = cross_split_near_duplicates({"train": [record_a,record_b],})
+    rng = np.random.default_rng(0)
+    paths = []
+    for i in range(12):  # 4 copies of 3 base images, slightly altered, plus distinct noise images
+        base = art_image.rotate(90 * (i % 3))
+        img = Image.fromarray(np.clip(np.asarray(base, dtype=np.int16) + rng.integers(-3, 4, (256, 256, 3)), 0, 255).astype(np.uint8))
+        p = tmp_path / f"near{i}.jpg"
+        img.save(p, quality=90)
+        paths.append(str(p))
+    for i in range(6):
+        p = tmp_path / f"noise{i}.png"
+        Image.fromarray(rng.integers(0, 256, (64, 64, 3), dtype=np.uint8)).save(p)
+        paths.append(str(p))
+    records = [Record(p, i % 2, "toy") for i, p in enumerate(paths)]
+    splits = {"train": records[0::3], "val": records[1::3], "test": records[2::3]}
 
-  assert findings == []
+    found = cross_split_near_duplicates(splits, max_distance=8, chunk=2)
+    got = {(f["path_a"], f["path_b"], f["hash_distance"]) for f in found}
+
+    names, expected = list(splits), set()
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            for ra in splits[a]:
+                for rb in splits[b]:
+                    d = hash_distance(perceptual_hash(ra.path), perceptual_hash(rb.path))
+                    if d <= 8:
+                        expected.add((ra.path, rb.path, d))
+    assert got == expected and len(got) > 0
+
+    summary = near_duplicate_summary(found, splits)
+    assert summary["n_pairs"] == len(found)
+    assert summary["pairs_same_label"] + summary["pairs_conflicting_label"] == len(found)
+    assert sum(summary["pairs_by_split"].values()) == len(found)
+    assert summary["split_sizes"] == {"train": 6, "val": 6, "test": 6}
+
+
+def test_unreadable_image_is_skipped(tmp_path, art_image):
+    good = tmp_path / "good.png"
+    art_image.save(good)
+    bad = tmp_path / "bad.png"
+    bad.write_bytes(b"not an image")
+    findings = cross_split_near_duplicates({"train": [Record(str(good), 0, "toy")], "test": [Record(str(bad), 0, "toy")]})
+    assert findings == []
