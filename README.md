@@ -58,6 +58,26 @@ Labels come from the `classes` glob rules per dataset in `configs/default.yaml`.
 folder patterns there are unverified until the first download, so check them with `inspect_datasets.py`.
 
 ## Status
+### Implemented in the current version as of October 28, 2026
 
+- **src/attribute/evaluation/statistics.py** is subject to be changed. 
+
+- **Dataset Preparation:** Dataset inspection, label handling, exploratory data analysis, train/validation/test split, and PyTorch dataset loading.
+- **Image Transformation:**  Utilities for simulating image transformations such as social-media processing, JPEG compression, WebP conversion, resizing, and recompression.
+- **Provenance Signal:** C2PA credential creation, signing, and verification utilities.
+- **Watermark Signal:** Keyed additive watermark embedding and correlation-based detection.
+- **Forensic CNN:** CNN model architectures, training utilities, inference, and temperature-based probability calibration.
+- **Multi-Signal Fusion:** Hierarchical decision logic that prioritizes valid provenance, then watermark detection, and finally the calibrated CNN, with an uncertainty option.
+- **Evaluation Metrics:** Accuracy, precision, recall, f1-score, False-Positive rate(FPR), Accuracy Degradation, Expected Calibration Error (ECE), and decision coverage.
+- **Evaluation pipeline:** `scripts/evaluation.py` compares provenance_only, watermark_only, CNN_only, and multi-signal systems across configured transformation conditions. It generates per-image records and summary reports in CSV and JSON format.
+- **Testing infrastructure:** Automated tests are provided for data handling, evaluation metrics, fusion logic, provenance utilities, and other implemented components.
+
+### Current limitations and verification status
+- Model trained checkpoints and calibration files must be generated before the full evaluation.
+- C2PA dependencies and end-to-end signing and verification must be tested.
+- The Experimental evaluation script must be eexecuted to generate actual results for each system and transformation condition.
+- Statistical analysis tests specified in the manuscript must be implemented and connected to the evaluation outputs before statistical significance can be reported.
+- **Results and reproducibility** Final metrics, comparisons, plots, and thesis tables must be generated from recorded experimental runs. No performance claims should be made without supporting results.
 - Not implemented yet: the full evaluation run (`scripts/evaluate.py`). The provenance test needs `pip install -e ".[provenance]"` (c2pa-python).
+  
 - Datasets: Kannan AI vs Human Art, Superpotato9 AI recognition, AI-ArtBench.
