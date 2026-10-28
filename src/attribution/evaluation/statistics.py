@@ -1,56 +1,35 @@
 """Paired statistical tests for comparing attribution systems on the same images."""
-from __future__ import annotations
-
-from math import comb
-
 import numpy as np
+from scipy.stats import ttest_rel
 
+def paired_f1_test(
+    multi_signal_f1: list[float],
+    cnn_only_f1: list[float],
+) -> dict[str, float | int | bool]:
+  multi = np.asarray(multi_signal_f1,dtype=float)
+  cnn = np.asarray(cnn_only_f1, dtype=float)
 
-def mcnemar_test(y_true, pred_a, pred_b) -> dict[str, float | int | None]:
-    """Exact two-sided McNemar test for paired binary predictions.
+  if multi.ndim != 1 or cnn.ndim != 1:
+    raise ValueError("F1 scores must be one dimensional.")
+  if len(multi) != len(cnn):
+    raise ValueError("Both systems must have the same number of paired scores.")
+  if len(multi) < 2:
+    raise ValueError("At least two paired observations are required.")
+  if not np.isfinite(multi).all() or not np.isfinite(cnn).all():
+    raise ValueError("F1 scores must be finite numers.")
+  if ((multi < 0) | (multi >1)).any() or ((cnn < 0) | (cnn > 1)).any():
+    raise ValueError("F1 scores must be between 0 and 1.")
 
-    Args:
-        y_true: Binary ground-truth labels (0=human, 1=AI).
-        pred_a: Binary predictions from system A, aligned with y_true.
-        pred_b: Binary predictions from system B, aligned with y_true.
+  differences = multi - cnn
+  test = ttest_rel(multi, cnn)
+  p_value=float(test.pvalue)
 
-    Returns:
-        Discordant-pair counts, exact two-sided p-value, and each system's
-        accuracy. Abstentions must be excluded consistently before calling.
-    """
-    y = np.asarray(y_true)
-    a = np.asarray(pred_a)
-    b = np.asarray(pred_b)
-
-    if y.ndim != 1 or a.ndim != 1 or b.ndim != 1:
-        raise ValueError("y_true, pred_a, and pred_b must be one-dimensional.")
-    if not (len(y) == len(a) == len(b)):
-        raise ValueError("y_true, pred_a, and pred_b must have equal lengths.")
-    if len(y) == 0:
-        raise ValueError("At least one paired prediction is required.")
-    if not np.isin(y, [0, 1]).all() or not np.isin(a, [0, 1]).all() or not np.isin(b, [0, 1]).all():
-        raise ValueError("All labels and predictions must be binary (0 or 1).")
-
-    correct_a = a == y
-    correct_b = b == y
-
-    # b_a: A correct / B wrong; b_b: A wrong / B correct.
-    b_a = int(np.sum(correct_a & ~correct_b))
-    b_b = int(np.sum(~correct_a & correct_b))
-    discordant = b_a + b_b
-
-    if discordant == 0:
-        p_value = 1.0
-    else:
-        lower_tail = sum(comb(discordant, k) for k in range(min(b_a, b_b) + 1))
-        p_value = min(1.0, 2.0 * lower_tail / (2 ** discordant))
-
-    return {
-        "n": int(len(y)),
-        "a_correct_b_wrong": b_a,
-        "a_wrong_b_correct": b_b,
-        "accuracy_a": float(np.mean(correct_a)),
-        "accuracy_b": float(np.mean(correct_b)),
-        "accuracy_difference_a_minus_b": float(np.mean(correct_a) - np.mean(correct_b)),
-        "mcnemar_exact_p": float(p_value),
-    }
+  return {
+      "n_pairs": len(multi),
+      "mean_multi_signal_f1": float(np.mean(multi)),
+      "mean_f1_difference": float(np.mean(differences)),
+      "t_statistic": float(test.statistic),
+      "p_value": p_value,
+      "alpha": 0.05,
+      "significant": bool(p_value < 0.05),
+  }
