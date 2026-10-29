@@ -247,6 +247,11 @@ outputs/**
 !outputs/evaluation/*/summary.csv
 !outputs/evaluation/*/summary.json
 !outputs/evaluation/*/watermark_confidence.json
+!outputs/evaluation/*/summary_excl_near_duplicates.csv
+!outputs/evaluation/*/summary_excl_near_duplicates.json
+!outputs/evaluation/*/near_duplicate_sensitivity.csv
+!outputs/data_quality/near_duplicates.csv
+!outputs/data_quality/near_duplicates_summary.json
 !outputs/splits/train.csv
 !outputs/splits/val.csv
 !outputs/splits/test.csv
