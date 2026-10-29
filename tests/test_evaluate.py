@@ -139,3 +139,53 @@ def test_resummarize_matches_direct_summary(tmp_path):
         assert a.keys() == b.keys()
         for k in a:
             assert a[k] == pytest.approx(b[k]) if isinstance(b[k], float) else a[k] == b[k]
+
+
+def test_exclusion_sensitivity_drops_flagged_test_images(tmp_path):
+    import csv
+    import json
+
+    rows = []
+    for condition in ("clean", "jpeg_q30"):
+        for i, (y, p_ai) in enumerate([(1, 0.9), (1, 0.2), (0, 0.1), (0, 0.8), (1, 0.95), (0, 0.05)]):
+            r = _row(y, p_ai=p_ai, condition=condition)
+            r["path"] = f"data/harmonized/test/{i:06d}.jpg"
+            rows.append(r)
+    with (tmp_path / "per_image.csv").open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+    (tmp_path / "summary.json").write_text(json.dumps({"split": "test"}))
+    # test images 1 and 3 (the CNN's two mistakes) are flagged; the val image is ignored
+    pairs = tmp_path / "near_duplicates.csv"
+    with pairs.open("w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["split_a", "path_a", "label_a", "source_a", "split_b", "path_b", "label_b", "source_b", "hash_distance"])
+        w.writerow(["train", "data/harmonized/train/000009.jpg", 1, "s", "test", "data/harmonized/test/000001.jpg", 1, "s", 0])
+        w.writerow(["val", "data/harmonized/val/000002.jpg", 0, "s", "test", "./data/harmonized/test/000003.jpg", 0, "s", 3])
+
+    comparison = evaluate.exclusion_sensitivity(tmp_path, pairs, ece_bins=15)
+    cnn = {r["condition"]: r for r in comparison if r["system"] == "cnn_only"}
+    assert cnn["clean"]["n_all"] == 6 and cnn["clean"]["n_excluded"] == 2
+    assert cnn["clean"]["accuracy_all"] == pytest.approx(4 / 6)
+    assert cnn["clean"]["accuracy_without"] == pytest.approx(1.0)
+    assert cnn["clean"]["accuracy_change"] == pytest.approx(1.0 - 4 / 6)
+    info = json.loads((tmp_path / "summary_excl_near_duplicates.json").read_text())
+    assert info["excluded_images"] == 2 and info["flagged_images_in_split"] == 2
+    assert (tmp_path / "summary_excl_near_duplicates.csv").is_file()
+
+
+def test_exclusion_sensitivity_rejects_mismatched_splits(tmp_path):
+    import csv
+
+    r = _row(1, p_ai=0.9)
+    r["path"] = "data/harmonized/test/000000.jpg"
+    with (tmp_path / "per_image.csv").open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(r))
+        w.writeheader()
+        w.writerow(r)
+    pairs = tmp_path / "near_duplicates.csv"
+    pairs.write_text("split_a,path_a,label_a,source_a,split_b,path_b,label_b,source_b,hash_distance\n"
+                     "train,x/train/1.jpg,1,s,test,other/test/9.jpg,1,s,0\n")
+    with pytest.raises(RuntimeError, match="same splits"):
+        evaluate.exclusion_sensitivity(tmp_path, pairs, ece_bins=15)

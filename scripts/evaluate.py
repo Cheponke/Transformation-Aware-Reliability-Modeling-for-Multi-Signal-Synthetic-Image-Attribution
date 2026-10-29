@@ -32,11 +32,14 @@ Writes outputs/evaluation/<arch>/{per_image.csv, summary.csv, summary.json,
 watermark_confidence.json}.
 Usage: python scripts/evaluate.py --arch resnet50 [--max-images 50] [--skip-provenance]
        python scripts/evaluate.py --arch resnet50 --resummarize   # recompute metrics from per_image.csv
+       python scripts/evaluate.py --arch resnet50 --resummarize \
+           --exclude-near-duplicates outputs/data_quality/near_duplicates.csv   # leakage sensitivity check
 """
 import argparse
 import csv
 import io
 import json
+import os
 import random
 from importlib import metadata
 from pathlib import Path
@@ -398,6 +401,94 @@ def resummarize(out_dir: Path, ece_bins: int) -> None:
     print(f"Recomputed {out_dir / 'summary.csv'} and {json_path} from {per_image_path} ({len(rows)} rows)")
 
 
+SENSITIVITY_METRICS = ["coverage", "accuracy", "precision", "recall", "fpr", "f1", "ece"]
+
+
+def flagged_paths(near_duplicates_csv: Path, split: str) -> set[str]:
+    """Images in `split` that the near-duplicate check paired with an image in another split."""
+    with Path(near_duplicates_csv).open(newline="", encoding="utf-8") as handle:
+        pairs = list(csv.DictReader(handle))
+    flagged = set()
+    for pair in pairs:
+        for side in ("a", "b"):
+            if pair[f"split_{side}"] == split:
+                flagged.add(os.path.normpath(pair[f"path_{side}"]))
+    return flagged
+
+
+def exclusion_sensitivity(out_dir: Path, near_duplicates_csv: Path, ece_bins: int) -> list[dict]:
+    """Recompute the summary without the flagged near-duplicate images and compare it with the full one.
+
+    Writes summary_excl_near_duplicates.csv/json (same columns as summary.csv) and
+    near_duplicate_sensitivity.csv (each metric with all images, without the
+    flagged ones, and the change). No model or GPU needed.
+    """
+    per_image_path = out_dir / "per_image.csv"
+    if not per_image_path.is_file():
+        raise FileNotFoundError(f"{per_image_path} not found: run the full evaluation first")
+    if not Path(near_duplicates_csv).is_file():
+        raise FileNotFoundError(f"{near_duplicates_csv} not found: run scripts/check_near_duplicates.py first")
+    with per_image_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    meta_path = out_dir / "summary.json"
+    meta = json.loads(meta_path.read_text()) if meta_path.is_file() else {}
+    split = meta.get("split", "test")
+
+    flagged = flagged_paths(near_duplicates_csv, split)
+    evaluated = {os.path.normpath(row["path"]) for row in rows}
+    excluded = flagged & evaluated
+    if flagged and not excluded:
+        raise RuntimeError(
+            f"None of the {len(flagged)} flagged {split} images appear in {per_image_path}; "
+            "check that both files come from the same splits"
+        )
+    kept = [row for row in rows if os.path.normpath(row["path"]) not in excluded]
+    full = final_summary(rows, ece_bins)
+    reduced = final_summary(kept, ece_bins)
+
+    _write_csv(out_dir / "summary_excl_near_duplicates.csv", reduced)
+    by_key = {(r["condition"], r["system"]): r for r in reduced}
+    comparison = []
+    for item in full:
+        other = by_key[(item["condition"], item["system"])]
+        row = {"condition": item["condition"], "system": item["system"], "n_all": item["n"], "n_excluded": item["n"] - other["n"]}
+        for metric in SENSITIVITY_METRICS:
+            a, b = item[metric], other[metric]
+            row[f"{metric}_all"] = a
+            row[f"{metric}_without"] = b
+            row[f"{metric}_change"] = b - a if a is not None and b is not None else None
+        comparison.append(row)
+    _write_csv(out_dir / "near_duplicate_sensitivity.csv", comparison)
+
+    n_images = len(evaluated)
+    info = {
+        "split": split,
+        "near_duplicates_csv": str(near_duplicates_csv),
+        "flagged_images_in_split": len(flagged),
+        "excluded_images": len(excluded),
+        "evaluated_images": n_images,
+        "excluded_share": len(excluded) / n_images if n_images else 0.0,
+        "note": "Every flagged image is excluded, whether or not it is a true duplicate (conservative).",
+        "max_abs_change": {
+            system: {
+                metric: max((abs(r[f"{metric}_change"]) for r in comparison
+                             if r["system"] == system and r[f"{metric}_change"] is not None), default=None)
+                for metric in ("accuracy", "f1", "recall", "fpr")
+            }
+            for system in SYSTEMS
+        },
+        "results": reduced,
+    }
+    (out_dir / "summary_excl_near_duplicates.json").write_text(json.dumps(info, indent=2))
+
+    print(f"{out_dir.name}: excluded {len(excluded)} of {n_images} {split} images "
+          f"({info['excluded_share']:.1%}) flagged as near-duplicates")
+    for system, changes in info["max_abs_change"].items():
+        print(f"  {system:>15}: largest change  " + "  ".join(f"{m}={_fmt(v)}" for m, v in changes.items()))
+    print(f"  written: {out_dir / 'near_duplicate_sensitivity.csv'}, {out_dir / 'summary_excl_near_duplicates.csv'}")
+    return comparison
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", default="configs/default.yaml")
@@ -416,6 +507,9 @@ def main():
     parser.add_argument("--no-watermark", action="store_true",
                         help="ablation: leave AI images unmarked and switch the watermark channel off "
                              "(fusion = provenance -> CNN); results go to <out>/<arch>_no_watermark")
+    parser.add_argument("--exclude-near-duplicates", metavar="CSV",
+                        help="with --resummarize: also recompute the summary without the images this "
+                             "near_duplicates.csv flags (from scripts/check_near_duplicates.py) and compare")
     parser.add_argument("--resummarize", action="store_true",
                         help="only recompute summary.csv/summary.json from the existing per_image.csv in --out/--arch")
     args = parser.parse_args()
@@ -424,8 +518,12 @@ def main():
 
     use_watermark = not args.no_watermark
     run_name = args.arch if use_watermark else f"{args.arch}_no_watermark"
+    if args.exclude_near_duplicates and not args.resummarize:
+        parser.error("--exclude-near-duplicates works with --resummarize (it reuses the saved per_image.csv)")
     if args.resummarize:
         resummarize(Path(args.out) / run_name, ece_bins)
+        if args.exclude_near_duplicates:
+            exclusion_sensitivity(Path(args.out) / run_name, Path(args.exclude_near_duplicates), ece_bins)
         return
 
     model_dir = Path(args.models) / args.arch
