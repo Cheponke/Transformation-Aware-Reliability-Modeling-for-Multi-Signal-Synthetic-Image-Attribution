@@ -252,6 +252,9 @@ outputs/**
 !outputs/evaluation/*/near_duplicate_sensitivity.csv
 !outputs/data_quality/near_duplicates.csv
 !outputs/data_quality/near_duplicates_summary.json
+!outputs/data_quality/removed_near_duplicates.csv
+!outputs/data_quality/removed_near_duplicates_summary.json
+!outputs/data_quality/after_removal/near_duplicates_summary.json
 !outputs/splits/train.csv
 !outputs/splits/val.csv
 !outputs/splits/test.csv
