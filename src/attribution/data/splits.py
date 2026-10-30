@@ -1,5 +1,6 @@
 """Class-balanced sampling and stratified 70/15/15 splits."""
 import csv
+import os
 import random
 from collections import defaultdict
 
@@ -88,3 +89,21 @@ def deduplicate(records: list[Record], hashes: list[str]) -> tuple[list[Record],
 def read_split(path) -> list[Record]:
     with open(path) as f:
         return [Record(r["path"], int(r["label"]), r["source"]) for r in csv.DictReader(f)]
+
+
+def leaking_partners(pairs: list[dict], keep_order: tuple[str, ...] = ("test", "val", "train")) -> dict[str, set[str]]:
+    """For each cross-split near-duplicate pair, the copy to drop: the one in the lower-priority split.
+
+    With the default order the test copy is always kept (so the test set is
+    unchanged), a val copy is dropped only when its partner is in test, and a
+    train copy is always dropped. Returns {split: paths to drop}.
+    """
+    rank = {name: i for i, name in enumerate(keep_order)}
+    drop: dict[str, set[str]] = defaultdict(set)
+    for pair in pairs:
+        a, b = pair["split_a"], pair["split_b"]
+        if a == b:
+            continue
+        loser = "a" if rank[a] > rank[b] else "b"
+        drop[pair[f"split_{loser}"]].add(os.path.normpath(pair[f"path_{loser}"]))
+    return dict(drop)
