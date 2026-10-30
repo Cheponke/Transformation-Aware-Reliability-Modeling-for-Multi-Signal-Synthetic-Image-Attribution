@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from attribution.config import load_config
 from attribution.data.datasets import index_dataset, label_for, Record
 from attribution.data.eda import (
@@ -169,3 +171,71 @@ def test_unreadable_image_is_skipped(tmp_path, art_image):
     bad.write_bytes(b"not an image")
     findings = cross_split_near_duplicates({"train": [Record(str(good), 0, "toy")], "test": [Record(str(bad), 0, "toy")]})
     assert findings == []
+
+
+def test_leaking_partners_keeps_test_then_val():
+    from attribution.data.splits import leaking_partners
+
+    pairs = [
+        {"split_a": "train", "path_a": "t/1.jpg", "split_b": "test", "path_b": "x/1.jpg"},
+        {"split_a": "train", "path_a": "t/2.jpg", "split_b": "val", "path_b": "v/2.jpg"},
+        {"split_a": "val", "path_a": "v/3.jpg", "split_b": "test", "path_b": "x/3.jpg"},
+        {"split_a": "test", "path_a": "x/4.jpg", "split_b": "train", "path_b": "./t/4.jpg"},
+    ]
+    drop = leaking_partners(pairs)
+    assert drop == {"train": {"t/1.jpg", "t/2.jpg", "t/4.jpg"}, "val": {"v/3.jpg"}}
+    assert "test" not in drop
+
+
+def test_remove_near_duplicates_script(tmp_path, art_image):
+    """End to end: the leaking copies leave the split CSVs, the test set doesn't change, a second run is a no-op."""
+    import csv
+    import subprocess
+    import sys
+
+    import yaml
+
+    from attribution.data.eda import cross_split_near_duplicates
+    from attribution.data.splits import read_split
+
+    root = Path(__file__).resolve().parents[1]
+    harmonized, processed = tmp_path / "harmonized", tmp_path / "processed"
+    harmonized.mkdir(), processed.mkdir()
+    names = {"train": ["dup_a", "solo_1"], "val": ["dup_b", "solo_2"], "test": ["dup_a", "dup_b"]}
+    for split, items in names.items():
+        rows, prows = [], []
+        for i, item in enumerate(items):
+            img = art_image if item.startswith("dup") else art_image.rotate(37 * (i + 1) + len(split))
+            if item == "dup_b":
+                img = img.transpose(0)  # a different picture from dup_a
+            p = harmonized / f"{split}_{i}.jpg"
+            img.save(p, quality=95 if split != "test" else 85)
+            rows.append({"path": str(p), "label": i % 2, "source": "toy", "original_path": f"raw/{split}_{i}.png"})
+            prows.append({"path": f"raw/{split}_{i}.png", "label": i % 2, "source": "toy"})
+        for folder, data in [(harmonized, rows), (processed, prows)]:
+            with open(folder / f"{split}.csv", "w", newline="") as f:
+                w = csv.DictWriter(f, fieldnames=list(data[0]))
+                w.writeheader()
+                w.writerows(data)
+    cfg = yaml.safe_load((root / "configs" / "default.yaml").read_text())
+    cfg["data"]["harmonized_dir"], cfg["data"]["processed_dir"] = str(harmonized), str(processed)
+    (tmp_path / "cfg.yaml").write_text(yaml.safe_dump(cfg))
+
+    splits = {s: read_split(harmonized / f"{s}.csv") for s in names}
+    pairs = cross_split_near_duplicates(splits, max_distance=5)
+    assert pairs, "the test fixture should contain cross-split near-duplicates"
+    with open(tmp_path / "pairs.csv", "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(pairs[0]))
+        w.writeheader()
+        w.writerows(pairs)
+
+    run = [sys.executable, str(root / "scripts" / "remove_near_duplicates.py"), "--config", str(tmp_path / "cfg.yaml"),
+           "--pairs", str(tmp_path / "pairs.csv"), "--report-dir", str(tmp_path / "dq")]
+    subprocess.run(run, check=True, capture_output=True, text=True)
+    after = {s: read_split(harmonized / f"{s}.csv") for s in names}
+    assert [r.path for r in after["test"]] == [r.path for r in splits["test"]]
+    assert cross_split_near_duplicates(after, max_distance=5) == []
+    removed_processed = 4 - sum(len(read_split(processed / f"{s}.csv")) for s in ("train", "val"))
+    assert removed_processed == sum(len(splits[s]) - len(after[s]) for s in ("train", "val")) > 0
+    second = subprocess.run(run, check=True, capture_output=True, text=True)
+    assert "Nothing to remove" in second.stdout
