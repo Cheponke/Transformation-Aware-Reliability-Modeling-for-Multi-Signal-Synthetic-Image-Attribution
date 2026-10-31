@@ -196,10 +196,15 @@ def _deliver(record, transform, condition_name, cfg, prov_signer, prov_ctx, use_
     return delivered, provenance_result
 
 
-def _prediction_rows(records, condition_name, cfg, model, temperature, device, watermark_threshold,
-                     watermark_confidence, prov_signer, prov_ctx, use_provenance, batch_size=64,
-                     use_watermark=True):
-    """Run all channels and the fusion rule on every record under one condition.
+def prediction_rows_multi(records, condition_name, cfg, models, device, watermark_threshold,
+                          watermark_confidence, prov_signer, prov_ctx, use_provenance, batch_size=64,
+                          use_watermark=True):
+    """Run all channels and the fusion rule on every record under one condition, for several CNNs at once.
+
+    `models` maps a name to (model, temperature). Each image is delivered once
+    (watermark, C2PA signing, transformation) and every CNN sees that same image,
+    which makes evaluating several backbones much cheaper. Returns one row per
+    (model, record), with the model name under "arch".
 
     With use_watermark=False (ablation) no image is marked and the watermark
     channel is switched off, so fusion is provenance -> CNN.
@@ -216,55 +221,68 @@ def _prediction_rows(records, condition_name, cfg, model, temperature, device, w
         delivered = [_deliver(r, transform, condition_name, cfg, prov_signer, prov_ctx, use_provenance, use_watermark)
                      for r in batch]
         images = [img for img, _ in delivered]
-
+        wm = [watermark.detect(img, key, watermark_threshold) for img in images]
         loader = DataLoader(_ImageList(images, [r.label for r in batch], tensor_transform),
                             batch_size=batch_size, num_workers=0)
-        logits, _ = predict_logits(model, loader, device)
-        probs = calibrated_probs(logits, temperature)
 
-        for record, (image, provenance_result), prob_ai in zip(batch, delivered, probs):
-            prob_ai = float(prob_ai)
-            wm_detected, wm_score = watermark.detect(image, key, watermark_threshold)
-            wm_detected = bool(wm_detected) and use_watermark  # channel off in the ablation
+        for arch, (model, temperature) in models.items():
+            logits, _ = predict_logits(model, loader, device)
+            probs = calibrated_probs(logits, temperature)
+            for record, (_, provenance_result), (wm_detected, wm_score), prob_ai in zip(batch, delivered, wm, probs):
+                prob_ai = float(prob_ai)
+                wm_detected = bool(wm_detected) and use_watermark  # channel off in the ablation
 
-            # Hierarchical fusion: provenance -> watermark -> CNN.
-            fused = decide(
-                Evidence(provenance=provenance_result, watermark_detected=bool(wm_detected),
-                         watermark_score=float(wm_score), cnn_prob_ai=prob_ai),
-                abstain_low=abstain_low,
-                abstain_high=abstain_high,
-                watermark_confidence=watermark_confidence,
-            )
+                # Hierarchical fusion: provenance -> watermark -> CNN.
+                fused = decide(
+                    Evidence(provenance=provenance_result, watermark_detected=wm_detected,
+                             watermark_score=float(wm_score), cnn_prob_ai=prob_ai),
+                    abstain_low=abstain_low,
+                    abstain_high=abstain_high,
+                    watermark_confidence=watermark_confidence,
+                )
 
-            # A missing or invalid credential is not a human prediction.
-            provenance_label = "uncertain"
-            if provenance_result.status is prov.ProvenanceStatus.VALID and provenance_result.claims_ai is not None:
-                provenance_label = "ai" if provenance_result.claims_ai else "human"
-            # Failure to detect a watermark is not proof of human origin.
-            watermark_label = "ai" if wm_detected else "uncertain"
-            cnn_label = "ai" if prob_ai >= 0.5 else "human"
+                # A missing or invalid credential is not a human prediction.
+                provenance_label = "uncertain"
+                if provenance_result.status is prov.ProvenanceStatus.VALID and provenance_result.claims_ai is not None:
+                    provenance_label = "ai" if provenance_result.claims_ai else "human"
+                # Failure to detect a watermark is not proof of human origin.
+                watermark_label = "ai" if wm_detected else "uncertain"
+                cnn_label = "ai" if prob_ai >= 0.5 else "human"
 
-            rows.append({
-                "condition": condition_name,
-                "path": record.path,
-                "source": record.source,
-                "y_true": int(record.label),
-                "provenance_status": provenance_result.status.value,
-                "provenance_claims_ai": provenance_result.claims_ai,
-                "watermark_score": float(wm_score),
-                "watermark_detected": bool(wm_detected),
-                "cnn_prob_ai": prob_ai,
-                "provenance_prediction": provenance_label,
-                "watermark_prediction": watermark_label,
-                "cnn_prediction": cnn_label,
-                "fusion_prediction": fused.label,
-                "fusion_source": fused.source,
-                "provenance_confidence": PROVENANCE_CONFIDENCE if provenance_label != "uncertain" else None,
-                "watermark_confidence": float(watermark_confidence) if wm_detected and watermark_confidence is not None else None,
-                "cnn_confidence": max(prob_ai, 1.0 - prob_ai),
-                "fusion_confidence": float(fused.confidence),
-                "watermark_threshold": float(watermark_threshold),
-            })
+                rows.append({
+                    "arch": arch,
+                    "condition": condition_name,
+                    "path": record.path,
+                    "source": record.source,
+                    "y_true": int(record.label),
+                    "provenance_status": provenance_result.status.value,
+                    "provenance_claims_ai": provenance_result.claims_ai,
+                    "watermark_score": float(wm_score),
+                    "watermark_detected": wm_detected,
+                    "cnn_prob_ai": prob_ai,
+                    "provenance_prediction": provenance_label,
+                    "watermark_prediction": watermark_label,
+                    "cnn_prediction": cnn_label,
+                    "fusion_prediction": fused.label,
+                    "fusion_source": fused.source,
+                    "provenance_confidence": PROVENANCE_CONFIDENCE if provenance_label != "uncertain" else None,
+                    "watermark_confidence": float(watermark_confidence) if wm_detected and watermark_confidence is not None else None,
+                    "cnn_confidence": max(prob_ai, 1.0 - prob_ai),
+                    "fusion_confidence": float(fused.confidence),
+                    "watermark_threshold": float(watermark_threshold),
+                })
+    return rows
+
+
+def _prediction_rows(records, condition_name, cfg, model, temperature, device, watermark_threshold,
+                     watermark_confidence, prov_signer, prov_ctx, use_provenance, batch_size=64,
+                     use_watermark=True):
+    """Single-model version of prediction_rows_multi (rows without the "arch" column)."""
+    rows = prediction_rows_multi(records, condition_name, cfg, {"model": (model, temperature)}, device,
+                                 watermark_threshold, watermark_confidence, prov_signer, prov_ctx, use_provenance,
+                                 batch_size, use_watermark)
+    for row in rows:
+        del row["arch"]
     return rows
 
 
