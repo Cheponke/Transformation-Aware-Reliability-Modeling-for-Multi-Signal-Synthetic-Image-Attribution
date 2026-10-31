@@ -207,3 +207,43 @@ def write_near_duplicate_report(findings: list[dict], summary: dict, out_dir) ->
     for item in sorted(findings, key=lambda x: x["hash_distance"])[:20]:
         print(f"  distance={item['hash_distance']} | {item['split_a']}: {item['path_a']} | {item['split_b']}: {item['path_b']}")
     print(f"Report: {out_dir / 'near_duplicates.csv'}, {out_dir / 'near_duplicates_summary.json'}")
+
+
+def near_duplicate_groups(
+    records: list[Record],
+    max_distance: int = 5,
+    workers: int | None = 1,
+    chunk: int = 512,
+) -> list[int]:
+    """Group id for every record: records linked by any chain of near-duplicate pairs share a group.
+
+    Compares every image with every other (within and across any split), so a
+    re-split such as k-fold cross-validation can keep each group in one fold.
+    Images that can't be read get their own group.
+    """
+    if not isinstance(max_distance, int) or not 0 <= max_distance <= 64:
+        raise ValueError("max_distance must be an integer between 0 and 64")
+    hashes = hash_records(records, workers)
+    idx = np.array([i for i, h in enumerate(hashes) if h is not None], dtype=np.int64)
+    values = np.array([hashes[i] for i in idx], dtype=np.uint64)
+
+    parent = list(range(len(records)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for start in range(0, len(values), chunk):
+        block = _hamming_matrix(values[start:start + chunk], values[start:])
+        for ia, ib in zip(*np.nonzero(block <= max_distance)):
+            a, b = int(idx[start + ia]), int(idx[start + ib])
+            if a != b:
+                ra, rb = find(a), find(b)
+                if ra != rb:
+                    parent[max(ra, rb)] = min(ra, rb)
+
+    roots = [find(i) for i in range(len(records))]
+    renumber = {r: n for n, r in enumerate(dict.fromkeys(roots))}
+    return [renumber[r] for r in roots]

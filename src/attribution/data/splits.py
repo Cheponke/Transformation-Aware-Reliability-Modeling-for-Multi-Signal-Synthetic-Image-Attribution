@@ -107,3 +107,61 @@ def leaking_partners(pairs: list[dict], keep_order: tuple[str, ...] = ("test", "
         loser = "a" if rank[a] > rank[b] else "b"
         drop[pair[f"split_{loser}"]].add(os.path.normpath(pair[f"path_{loser}"]))
     return dict(drop)
+
+
+def _groups_by_majority_label(records: list[Record], groups: list[int]) -> dict[int, dict]:
+    members: dict[int, list[int]] = defaultdict(list)
+    for i, g in enumerate(groups):
+        members[g].append(i)
+    out = {}
+    for g, idx in members.items():
+        n_ai = sum(records[i].label for i in idx)
+        out[g] = {"idx": idx, "label": int(n_ai * 2 > len(idx)), "size": len(idx)}
+    return out
+
+
+def grouped_k_folds(records: list[Record], groups: list[int], k: int, seed: int) -> list[int]:
+    """Fold number (0..k-1) for every record: whole groups go to one fold, classes stay balanced.
+
+    Groups (e.g. from near_duplicate_groups) are placed largest first, each into
+    the fold that currently has the fewest images of the group's majority label,
+    so near-duplicates never end up on both sides of a train/test boundary.
+    """
+    if len(records) != len(groups):
+        raise ValueError("records and groups must have the same length")
+    if k < 2:
+        raise ValueError("k must be at least 2")
+    info = _groups_by_majority_label(records, groups)
+    order = list(info)
+    random.Random(seed).shuffle(order)
+    order.sort(key=lambda g: -info[g]["size"])  # stable: random among equal sizes
+    counts = [[0, 0] for _ in range(k)]
+    fold_of = [0] * len(records)
+    for g in order:
+        lab = info[g]["label"]
+        f = min(range(k), key=lambda j: (counts[j][lab], sum(counts[j]), j))
+        for i in info[g]["idx"]:
+            fold_of[i] = f
+            counts[f][records[i].label] += 1
+    return fold_of
+
+
+def grouped_holdout(records: list[Record], groups: list[int], fraction: float, seed: int) -> tuple[list[Record], list[Record]]:
+    """Split records into (rest, holdout) with about `fraction` of each class held out, never splitting a group."""
+    if not 0 < fraction < 1:
+        raise ValueError("fraction must be between 0 and 1")
+    info = _groups_by_majority_label(records, groups)
+    totals = [sum(r.label == lab for r in records) for lab in (0, 1)]
+    target = [round(fraction * t) for t in totals]
+    order = list(info)
+    random.Random(seed).shuffle(order)
+    held = [0, 0]
+    rest, holdout = [], []
+    for g in order:
+        lab = info[g]["label"]
+        take = held[lab] + info[g]["size"] <= target[lab]
+        for i in info[g]["idx"]:
+            (holdout if take else rest).append(records[i])
+        if take:
+            held[lab] += info[g]["size"]
+    return rest, holdout
