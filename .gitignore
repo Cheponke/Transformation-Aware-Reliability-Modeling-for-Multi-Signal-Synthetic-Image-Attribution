@@ -255,6 +255,15 @@ outputs/**
 !outputs/data_quality/removed_near_duplicates.csv
 !outputs/data_quality/removed_near_duplicates_summary.json
 !outputs/data_quality/after_removal/near_duplicates_summary.json
+!outputs/cv/folds.csv
+!outputs/cv/summary_by_fold.csv
+!outputs/cv/summary_mean_sd.csv
+!outputs/cv/significance.csv
+!outputs/cv/cv_report.json
+!outputs/cv/fold_*/summary.csv
+!outputs/cv/fold_*/watermark.json
+!outputs/cv/fold_*/*/calibration.json
+!outputs/cv/fold_*/*/history.json
 !outputs/splits/train.csv
 !outputs/splits/val.csv
 !outputs/splits/test.csv

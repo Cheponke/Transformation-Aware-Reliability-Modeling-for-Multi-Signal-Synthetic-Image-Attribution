@@ -33,3 +33,19 @@ def paired_f1_test(
       "alpha": 0.05,
       "significant": bool(p_value < 0.05),
   }
+
+
+def holm_adjust(p_values: list[float | None]) -> list[float | None]:
+    """Holm-Bonferroni adjusted p-values (None entries are skipped and stay None).
+
+    Controls the chance of any false positive across a family of tests, e.g. one
+    paired t-test per transformation condition and comparison.
+    """
+    indexed = sorted((p, i) for i, p in enumerate(p_values) if p is not None and np.isfinite(p))
+    m = len(indexed)
+    adjusted: list[float | None] = [None] * len(p_values)
+    running = 0.0
+    for rank, (p, i) in enumerate(indexed):
+        running = max(running, min(1.0, (m - rank) * p))
+        adjusted[i] = running
+    return adjusted
