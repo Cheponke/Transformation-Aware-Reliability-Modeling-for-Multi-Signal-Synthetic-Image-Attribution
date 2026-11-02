@@ -105,3 +105,17 @@ def test_aggregate_paired_tests(tmp_path):
         sd = {(r["condition"], r["system"]): r for r in csv.DictReader(fh)}
     assert float(sd[("clean", "multi_signal")]["f1_mean"]) == 1.0
     assert float(sd[("clean", "multi_signal")]["f1_sd"]) == 0.0
+
+
+def test_corrected_t_test_shrinks_t_by_the_overlap_factor():
+    from attribution.evaluation.statistics import corrected_paired_t_test, paired_f1_test
+
+    a = [0.95, 0.96, 0.94, 0.97, 0.95]
+    b = [0.80, 0.83, 0.79, 0.82, 0.81]
+    plain = paired_f1_test(a, b)
+    corr = corrected_paired_t_test(a, b, n_train=13477, n_test=3964)
+    factor = np.sqrt((1 / 5) / (1 / 5 + 3964 / 13477))
+    assert corr["t_statistic"] == pytest.approx(plain["t_statistic"] * factor)
+    assert corr["p_value"] > plain["p_value"]
+    same = corrected_paired_t_test([1, 1], [0.5, 0.5], 10, 5)
+    assert np.isnan(same["p_value"])

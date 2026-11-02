@@ -49,3 +49,37 @@ def holm_adjust(p_values: list[float | None]) -> list[float | None]:
         running = max(running, min(1.0, (m - rank) * p))
         adjusted[i] = running
     return adjusted
+
+
+def corrected_paired_t_test(
+    scores_a: list[float],
+    scores_b: list[float],
+    n_train: float,
+    n_test: float,
+) -> dict[str, float | int]:
+    """Nadeau-Bengio corrected resampled t-test for k-fold cross-validation scores.
+
+    The k training sets overlap, so the fold differences are positively
+    correlated and the plain paired t-test understates their variance. The
+    correction inflates the variance of the mean difference from s^2/k to
+    (1/k + n_test/n_train) * s^2 (Nadeau & Bengio, 2003, Machine Learning 52).
+    Returns the corrected t statistic and two-sided p-value (k - 1 degrees of freedom).
+    """
+    from scipy.stats import t as t_dist
+
+    a = np.asarray(scores_a, dtype=float)
+    b = np.asarray(scores_b, dtype=float)
+    if a.shape != b.shape or a.ndim != 1:
+        raise ValueError("Both systems must have the same number of one-dimensional paired scores.")
+    k = len(a)
+    if k < 2:
+        raise ValueError("At least two paired observations are required.")
+    if n_train <= 0 or n_test <= 0:
+        raise ValueError("n_train and n_test must be positive.")
+    d = a - b
+    var = float(np.var(d, ddof=1))
+    if var == 0:
+        return {"n_pairs": k, "t_statistic": float("nan"), "p_value": float("nan"), "correction": 1 / k + n_test / n_train}
+    t = float(np.mean(d)) / np.sqrt((1 / k + n_test / n_train) * var)
+    return {"n_pairs": k, "t_statistic": t, "p_value": float(2 * t_dist.sf(abs(t), k - 1)),
+            "correction": 1 / k + n_test / n_train}
