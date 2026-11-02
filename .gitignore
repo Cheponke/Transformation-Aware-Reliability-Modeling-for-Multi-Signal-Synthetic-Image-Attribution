@@ -256,6 +256,8 @@ outputs/**
 !outputs/data_quality/removed_near_duplicates_summary.json
 !outputs/data_quality/after_removal/near_duplicates_summary.json
 !outputs/cv/folds.csv
+!outputs/evaluation/adoption/*/adoption_summary.csv
+!outputs/evaluation/adoption/*/crossover.csv
 !outputs/cv/summary_by_fold.csv
 !outputs/cv/summary_mean_sd.csv
 !outputs/cv/significance.csv

@@ -19,6 +19,8 @@ Then, across folds: mean and standard deviation of every metric, and for each
 backbone and condition a paired t-test of multi-signal F1 against each
 single-signal F1 (5 pairs, one per fold), with Holm-adjusted p-values for the
 whole family of tests alongside the unadjusted ones the manuscript specifies.
+Because the folds' training sets overlap, the plain t-test is optimistic; the
+Nadeau-Bengio corrected resampled t-test is reported alongside it.
 
 Writes outputs/cv/: folds.csv, fold_<k>/..., summary_by_fold.csv,
 summary_mean_sd.csv, significance.csv, cv_report.json.
@@ -40,7 +42,7 @@ from attribution.config import load_config, splits_dir  # noqa: E402
 from attribution.data.datasets import Record  # noqa: E402
 from attribution.data.eda import near_duplicate_groups  # noqa: E402
 from attribution.data.splits import grouped_holdout, grouped_k_folds, read_split  # noqa: E402
-from attribution.evaluation.statistics import holm_adjust, paired_f1_test  # noqa: E402
+from attribution.evaluation.statistics import corrected_paired_t_test, holm_adjust, paired_f1_test  # noqa: E402
 from attribution.signals import watermark  # noqa: E402
 from attribution.transforms.social_media import build_conditions  # noqa: E402
 
@@ -257,6 +259,15 @@ def aggregate(out: Path, k: int, alpha: float) -> dict:
         mean_sd.append(item)
     _write_csv(out / "summary_mean_sd.csv", mean_sd)
 
+    # average train / test sizes over the finished folds, for the corrected t-test
+    sizes = []
+    for f in done:
+        fold_dir = out / f"fold_{f}"
+        if (fold_dir / "train.csv").is_file() and (fold_dir / "test.csv").is_file():
+            sizes.append((len(_read_csv(fold_dir / "train.csv")), len(_read_csv(fold_dir / "test.csv"))))
+    n_train = float(np.mean([s[0] for s in sizes])) if sizes else None
+    n_test = float(np.mean([s[1] for s in sizes])) if sizes else None
+
     tests = []
     if len(done) >= 2:
         for arch, condition in dict.fromkeys((a, c) for a, c, _ in keys):
@@ -271,28 +282,41 @@ def aggregate(out: Path, k: int, alpha: float) -> dict:
                 row = {"arch": arch, "condition": condition, "comparison": f"multi_signal vs {single}",
                        "n_folds": len(folds), "mean_f1_multi_signal": float(np.mean(a)),
                        f"mean_f1_single": float(np.mean(b)), "mean_difference": float(np.mean(diffs)),
-                       "sd_difference": float(np.std(diffs, ddof=1)), "t_statistic": None, "p_value": None, "note": ""}
+                       "sd_difference": float(np.std(diffs, ddof=1)), "t_statistic": None, "p_value": None,
+                       "t_corrected": None, "p_corrected": None, "note": ""}
                 if np.allclose(diffs, diffs[0]):
                     row["note"] = "identical difference in every fold: t-test undefined"
                 else:
                     result = paired_f1_test(a, b)
                     row["t_statistic"], row["p_value"] = result["t_statistic"], result["p_value"]
+                    if n_train and n_test:
+                        corrected = corrected_paired_t_test(a, b, n_train, n_test)
+                        row["t_corrected"], row["p_corrected"] = corrected["t_statistic"], corrected["p_value"]
                 tests.append(row)
         adjusted = holm_adjust([t["p_value"] for t in tests])
-        for t, adj in zip(tests, adjusted):
+        adjusted_corrected = holm_adjust([t["p_corrected"] for t in tests])
+        for t, adj, adj_c in zip(tests, adjusted, adjusted_corrected):
             t["p_holm"] = adj
+            t["p_corrected_holm"] = adj_c
             t["significant_p05"] = t["p_value"] is not None and t["p_value"] < alpha
             t["significant_holm"] = adj is not None and adj < alpha
+            t["significant_corrected"] = t["p_corrected"] is not None and t["p_corrected"] < alpha
+            t["significant_corrected_holm"] = adj_c is not None and adj_c < alpha
         _write_csv(out / "significance.csv", tests)
 
     report = {"folds_done": done, "k": k, "alpha": alpha, "n_tests": len(tests),
               "significant_unadjusted": sum(t["significant_p05"] for t in tests),
               "significant_holm": sum(t["significant_holm"] for t in tests),
+              "significant_corrected": sum(t["significant_corrected"] for t in tests),
+              "significant_corrected_holm": sum(t["significant_corrected_holm"] for t in tests),
+              "n_train_mean": n_train, "n_test_mean": n_test,
               "undefined_tests": sum(t["p_value"] is None for t in tests)}
     (out / "cv_report.json").write_text(json.dumps(report, indent=1))
     print(f"aggregated {len(done)} folds ({done}); {report['n_tests']} paired t-tests, "
           f"{report['significant_unadjusted']} significant at p<{alpha} "
-          f"({report['significant_holm']} after Holm correction, {report['undefined_tests']} undefined)")
+          f"({report['significant_holm']} after Holm correction, {report['undefined_tests']} undefined); "
+          f"corrected resampled t-test: {report['significant_corrected']} significant "
+          f"({report['significant_corrected_holm']} after Holm)")
     return report
 
 
