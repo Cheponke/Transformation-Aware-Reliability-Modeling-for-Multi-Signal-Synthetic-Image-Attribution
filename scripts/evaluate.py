@@ -516,6 +516,8 @@ def main():
                         help="where scripts/watermark_test.py wrote threshold.json")
     parser.add_argument("--out", default="outputs/evaluation")
     parser.add_argument("--split", default="test", choices=["train", "val", "test"])
+    parser.add_argument("--split-csv", help="evaluate the images listed in this CSV (path,label,source) instead of a split, "
+                                            "e.g. data/external/external.csv; pair with --out outputs/evaluation/external")
     parser.add_argument("--max-images", type=int, help="limit to this many images per class (test and validation) for a smoke test")
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
@@ -573,7 +575,7 @@ def main():
             selected.extend(rng.sample(group, min(args.max_images, len(group))))
         return selected
 
-    split_path = splits_dir(cfg) / f"{args.split}.csv"
+    split_path = Path(args.split_csv) if args.split_csv else splits_dir(cfg) / f"{args.split}.csv"
     if not split_path.is_file():
         raise FileNotFoundError(f"Split file not found: {split_path}")
     records = per_class_subset(read_split(split_path))
@@ -665,7 +667,7 @@ def main():
 
     (out_dir / "summary.json").write_text(json.dumps({
         "architecture": args.arch,
-        "split": args.split,
+        "split": str(split_path) if args.split_csv else args.split,
         "n_images": len(records),
         "conditions": list(conditions),
         "temperature": temperature,
