@@ -256,6 +256,17 @@ outputs/**
 !outputs/data_quality/removed_near_duplicates_summary.json
 !outputs/data_quality/after_removal/near_duplicates_summary.json
 !outputs/cv/folds.csv
+!outputs/evaluation/external/external_summary.json
+!outputs/evaluation/external/*/summary.csv
+!outputs/evaluation/external/*/summary.json
+!outputs/evaluation/external/*/watermark_confidence.json
+!outputs/evaluation/external/report/by_generator.csv
+!outputs/evaluation/external/report/vs_in_distribution.csv
+!outputs/gradcam/*/examples_in_distribution.png
+!outputs/gradcam/*/examples_external.png
+!outputs/gradcam/*/watermark.png
+!outputs/gradcam/*/stability.csv
+!outputs/gradcam/*/stability_summary.json
 !outputs/evaluation/adoption/*/adoption_summary.csv
 !outputs/evaluation/adoption/*/crossover.csv
 !outputs/cv/summary_by_fold.csv
