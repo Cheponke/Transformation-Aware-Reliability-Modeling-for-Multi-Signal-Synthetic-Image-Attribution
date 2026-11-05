@@ -1,0 +1,24 @@
+{
+ "confidence": 0.9985163204747773,
+ "tpr": 0.9284116331096197,
+ "fpr": 0.0013422818791946308,
+ "tp": 12450,
+ "fp": 18,
+ "n_marked_scores": 13410,
+ "n_unmarked_scores": 13410,
+ "conditions": [
+  "clean",
+  "jpeg_q90",
+  "jpeg_q70",
+  "jpeg_q50",
+  "jpeg_q30",
+  "webp_q80",
+  "resize_0.5",
+  "resize_0.25",
+  "recompress_x3"
+ ],
+ "alpha": 4.0,
+ "threshold": 0.03646755382418633,
+ "prior": "equal class priors (balanced test split)",
+ "source": "data/harmonized/val.csv"
+}

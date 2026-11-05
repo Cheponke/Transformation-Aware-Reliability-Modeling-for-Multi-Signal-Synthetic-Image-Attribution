@@ -53,7 +53,7 @@ results to `MyDrive/thesis-data/` so a later session can continue from them.
 | `03_watermark` | Watermark detection threshold and stress test | `watermark_test.py` | 3.6.1 |
 | `04_provenance` | C2PA signing, verification and soft-binding recovery under each transform | `provenance_test.py` | 3.6.2 |
 | `05_fusion` | Evaluate provenance-only, watermark-only, CNN-only and multi-signal, with and without the watermark | `evaluate.py` | 3.7 |
-| `05b_near_duplicate_sensitivity` | Same evaluation with any remaining near-duplicates excluded | `evaluate.py --exclude-near-duplicates` | 3.5 |
+| `05b_near_duplicate_sensitivity` | Same evaluation with near-duplicate test images excluded (run before the removal in 01c) | `evaluate.py --exclude-near-duplicates` | 3.5 |
 | `05c_adoption_sweep` | Results when only part of the AI images carry a watermark / C2PA credential | `adoption_sweep.py` | 3.7 |
 | `07_cross_validation` | Grouped 5-fold cross-validation and significance tests | `cross_validate.py` | 3.8.1 |
 | `08_external_and_gradcam` | Unseen-generator test on WikiArt_VLM; Grad-CAM attention stability | `prepare_external.py`, `evaluate.py --split-csv`, `external_report.py`, `gradcam.py` | 3.7.3, 3.8.2, 3.8.3 |
@@ -89,6 +89,7 @@ Drive only; `.gitignore` lets just the summaries in). `outputs/MANIFEST.json` li
 | Folder | Contents |
 |---|---|
 | `outputs/data_quality/` | Near-duplicate pairs found and removed |
+| `outputs/evaluation/pre_removal/` | Notebook 05b run before the near-duplicate removal (a record of why it was done, not final results) |
 | `outputs/models/`, `outputs/stress_test/` | Calibration temperatures, training curves, CNN accuracy under each transform |
 | `outputs/watermark/`, `outputs/provenance/` | Watermark threshold and survival; C2PA verification and soft-binding results |
 | `outputs/evaluation/<arch>[_no_watermark]/` | The four systems on the test split, per transform |

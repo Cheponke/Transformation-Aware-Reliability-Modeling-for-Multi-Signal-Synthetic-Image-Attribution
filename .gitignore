@@ -250,6 +250,11 @@ outputs/**
 !outputs/evaluation/*/summary_excl_near_duplicates.csv
 !outputs/evaluation/*/summary_excl_near_duplicates.json
 !outputs/evaluation/*/near_duplicate_sensitivity.csv
+# notebook 05b run on the models trained before the near-duplicate removal (kept as a record)
+!outputs/evaluation/pre_removal/README.md
+!outputs/evaluation/pre_removal/*/summary_excl_near_duplicates.csv
+!outputs/evaluation/pre_removal/*/summary_excl_near_duplicates.json
+!outputs/evaluation/pre_removal/*/near_duplicate_sensitivity.csv
 !outputs/data_quality/near_duplicates.csv
 !outputs/data_quality/near_duplicates_summary.json
 !outputs/data_quality/removed_near_duplicates.csv

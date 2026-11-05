@@ -1,0 +1,3 @@
+attack,n,valid_rate,untrusted_rate,invalid_rate,absent_rate
+transplant,2992,0.0,0.0,1.0,0.0
+self_signed,2992,0.0,1.0,0.0,0.0

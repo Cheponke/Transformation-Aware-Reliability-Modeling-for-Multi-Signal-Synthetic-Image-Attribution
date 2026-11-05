@@ -1,0 +1,28 @@
+{
+ "pairs_file": "outputs/data_quality/near_duplicates.csv",
+ "n_pairs": 157,
+ "rule": "keep test > val > train",
+ "splits": {
+  "train": {
+   "before": 13961,
+   "removed": 113,
+   "after": 13848,
+   "human_after": 6918,
+   "ai_after": 6930
+  },
+  "val": {
+   "before": 2992,
+   "removed": 12,
+   "after": 2980,
+   "human_after": 1490,
+   "ai_after": 1490
+  },
+  "test": {
+   "before": 2992,
+   "removed": 0,
+   "after": 2992,
+   "human_after": 1499,
+   "ai_after": 1493
+  }
+ }
+}
