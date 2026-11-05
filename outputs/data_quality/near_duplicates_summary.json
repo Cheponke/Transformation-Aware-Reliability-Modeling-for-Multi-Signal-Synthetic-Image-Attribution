@@ -1,0 +1,38 @@
+{
+ "n_pairs": 157,
+ "pairs_by_split": {
+  "train+test": 61,
+  "train+val": 83,
+  "val+test": 13
+ },
+ "pairs_same_label": 127,
+ "pairs_conflicting_label": 30,
+ "pairs_by_source": {
+  "ai_artbench+ai_artbench": 7,
+  "ai_artbench+kannan_ai_human_art": 17,
+  "ai_artbench+superpotato9_ai_recognition": 5,
+  "kannan_ai_human_art+kannan_ai_human_art": 45,
+  "kannan_ai_human_art+superpotato9_ai_recognition": 8,
+  "superpotato9_ai_recognition+superpotato9_ai_recognition": 75
+ },
+ "pairs_by_distance": {
+  "0": 34,
+  "1": 26,
+  "2": 9,
+  "3": 17,
+  "4": 20,
+  "5": 51
+ },
+ "images_affected": {
+  "train": 113,
+  "val": 57,
+  "test": 51
+ },
+ "split_sizes": {
+  "train": 13961,
+  "val": 2992,
+  "test": 2992
+ },
+ "max_distance": 5,
+ "splits_dir": "data/harmonized"
+}

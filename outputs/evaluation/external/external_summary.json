@@ -1,0 +1,34 @@
+{
+ "dataset": "WikiArt_VLM (Fu et al., 2026), Zenodo 10.5281/zenodo.17880956, CC BY 4.0",
+ "sampling": "paired",
+ "per_generator_requested": 1500,
+ "harmonize": {
+  "enabled": true,
+  "size": 256,
+  "jpeg_quality": 95
+ },
+ "max_distance": 5,
+ "sources": {
+  "flux": {
+   "sampled": 1500,
+   "removed_near_duplicates": 10,
+   "kept": 1490
+  },
+  "f_lite": {
+   "sampled": 1500,
+   "removed_near_duplicates": 17,
+   "kept": 1483
+  },
+  "sd35": {
+   "sampled": 1496,
+   "removed_near_duplicates": 1,
+   "kept": 1495
+  },
+  "wikiart": {
+   "sampled": 4500,
+   "removed_near_duplicates": 129,
+   "kept": 4371
+  }
+ },
+ "kept_total": 8839
+}

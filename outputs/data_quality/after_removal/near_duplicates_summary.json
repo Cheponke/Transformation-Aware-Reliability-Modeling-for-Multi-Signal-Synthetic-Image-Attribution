@@ -1,0 +1,20 @@
+{
+ "n_pairs": 0,
+ "pairs_by_split": {},
+ "pairs_same_label": 0,
+ "pairs_conflicting_label": 0,
+ "pairs_by_source": {},
+ "pairs_by_distance": {},
+ "images_affected": {
+  "train": 0,
+  "val": 0,
+  "test": 0
+ },
+ "split_sizes": {
+  "train": 13848,
+  "val": 2980,
+  "test": 2992
+ },
+ "max_distance": 5,
+ "splits_dir": "data/harmonized"
+}

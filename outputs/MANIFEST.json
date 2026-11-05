@@ -1,0 +1,585 @@
+{
+ "collected_at": "2026-11-05T08:50:57",
+ "source": "/content/drive/MyDrive/thesis-data",
+ "files": [
+  {
+   "path": "outputs/models/efficientnet_b0/calibration.json",
+   "bytes": 35,
+   "modified": "2026-10-31T17:04:53"
+  },
+  {
+   "path": "outputs/models/resnet18/calibration.json",
+   "bytes": 35,
+   "modified": "2026-10-31T16:29:06"
+  },
+  {
+   "path": "outputs/models/resnet50/calibration.json",
+   "bytes": 35,
+   "modified": "2026-10-31T16:47:14"
+  },
+  {
+   "path": "outputs/models/efficientnet_b0/history.json",
+   "bytes": 998,
+   "modified": "2026-10-31T17:04:44"
+  },
+  {
+   "path": "outputs/models/resnet18/history.json",
+   "bytes": 1121,
+   "modified": "2026-10-31T16:28:57"
+  },
+  {
+   "path": "outputs/models/resnet50/history.json",
+   "bytes": 996,
+   "modified": "2026-10-31T16:47:02"
+  },
+  {
+   "path": "outputs/stress_test/efficientnet_b0/results.csv",
+   "bytes": 1368,
+   "modified": "2026-10-31T17:06:54"
+  },
+  {
+   "path": "outputs/stress_test/resnet18/results.csv",
+   "bytes": 1346,
+   "modified": "2026-10-31T16:31:11"
+  },
+  {
+   "path": "outputs/stress_test/resnet50/results.csv",
+   "bytes": 1322,
+   "modified": "2026-10-31T16:49:34"
+  },
+  {
+   "path": "outputs/stress_test/efficientnet_b0/results.json",
+   "bytes": 2472,
+   "modified": "2026-10-31T17:06:55"
+  },
+  {
+   "path": "outputs/stress_test/resnet18/results.json",
+   "bytes": 2443,
+   "modified": "2026-10-31T16:31:12"
+  },
+  {
+   "path": "outputs/stress_test/resnet50/results.json",
+   "bytes": 2419,
+   "modified": "2026-10-31T16:49:36"
+  },
+  {
+   "path": "outputs/watermark/threshold.json",
+   "bytes": 423,
+   "modified": "2026-10-31T17:20:25"
+  },
+  {
+   "path": "outputs/watermark/results.csv",
+   "bytes": 2678,
+   "modified": "2026-10-31T17:24:11"
+  },
+  {
+   "path": "outputs/provenance/results.csv",
+   "bytes": 3257,
+   "modified": "2026-10-31T18:06:29"
+  },
+  {
+   "path": "outputs/provenance/attacks.csv",
+   "bytes": 128,
+   "modified": "2026-10-31T18:06:29"
+  },
+  {
+   "path": "outputs/provenance/softbinding.json",
+   "bytes": 457,
+   "modified": "2026-10-31T18:06:28"
+  },
+  {
+   "path": "outputs/evaluation/efficientnet_b0/summary.csv",
+   "bytes": 7770,
+   "modified": "2026-10-31T19:05:11"
+  },
+  {
+   "path": "outputs/evaluation/efficientnet_b0_no_watermark/summary.csv",
+   "bytes": 6436,
+   "modified": "2026-10-31T19:17:38"
+  },
+  {
+   "path": "outputs/evaluation/resnet50/summary.csv",
+   "bytes": 7744,
+   "modified": "2026-10-31T19:05:03"
+  },
+  {
+   "path": "outputs/evaluation/resnet50_no_watermark/summary.csv",
+   "bytes": 6416,
+   "modified": "2026-10-31T19:11:54"
+  },
+  {
+   "path": "outputs/evaluation/efficientnet_b0/summary.json",
+   "bytes": 28144,
+   "modified": "2026-10-31T19:05:11"
+  },
+  {
+   "path": "outputs/evaluation/efficientnet_b0_no_watermark/summary.json",
+   "bytes": 26722,
+   "modified": "2026-10-31T19:17:38"
+  },
+  {
+   "path": "outputs/evaluation/resnet50/summary.json",
+   "bytes": 28104,
+   "modified": "2026-10-31T19:05:03"
+  },
+  {
+   "path": "outputs/evaluation/resnet50_no_watermark/summary.json",
+   "bytes": 26695,
+   "modified": "2026-10-31T19:11:54"
+  },
+  {
+   "path": "outputs/evaluation/efficientnet_b0/watermark_confidence.json",
+   "bytes": 472,
+   "modified": "2026-10-31T18:59:00"
+  },
+  {
+   "path": "outputs/evaluation/efficientnet_b0_no_watermark/watermark_confidence.json",
+   "bytes": 85,
+   "modified": "2026-10-31T19:11:56"
+  },
+  {
+   "path": "outputs/evaluation/resnet50/watermark_confidence.json",
+   "bytes": 472,
+   "modified": "2026-10-31T18:50:24"
+  },
+  {
+   "path": "outputs/evaluation/resnet50_no_watermark/watermark_confidence.json",
+   "bytes": 85,
+   "modified": "2026-10-31T19:05:11"
+  },
+  {
+   "path": "outputs/evaluation/pre_removal/efficientnet_b0/summary_excl_near_duplicates.csv",
+   "bytes": 7770,
+   "modified": "2026-10-29T15:31:24",
+   "moved_from": "outputs/evaluation/efficientnet_b0/summary_excl_near_duplicates.csv"
+  },
+  {
+   "path": "outputs/evaluation/pre_removal/efficientnet_b0_no_watermark/summary_excl_near_duplicates.csv",
+   "bytes": 6455,
+   "modified": "2026-10-29T15:31:41",
+   "moved_from": "outputs/evaluation/efficientnet_b0_no_watermark/summary_excl_near_duplicates.csv"
+  },
+  {
+   "path": "outputs/evaluation/pre_removal/resnet50/summary_excl_near_duplicates.csv",
+   "bytes": 7732,
+   "modified": "2026-10-29T15:31:17",
+   "moved_from": "outputs/evaluation/resnet50/summary_excl_near_duplicates.csv"
+  },
+  {
+   "path": "outputs/evaluation/pre_removal/resnet50_no_watermark/summary_excl_near_duplicates.csv",
+   "bytes": 6449,
+   "modified": "2026-10-29T15:31:34",
+   "moved_from": "outputs/evaluation/resnet50_no_watermark/summary_excl_near_duplicates.csv"
+  },
+  {
+   "path": "outputs/evaluation/pre_removal/efficientnet_b0/summary_excl_near_duplicates.json",
+   "bytes": 27148,
+   "modified": "2026-10-29T15:31:24",
+   "moved_from": "outputs/evaluation/efficientnet_b0/summary_excl_near_duplicates.json"
+  },
+  {
+   "path": "outputs/evaluation/pre_removal/efficientnet_b0_no_watermark/summary_excl_near_duplicates.json",
+   "bytes": 26159,
+   "modified": "2026-10-29T15:31:41",
+   "moved_from": "outputs/evaluation/efficientnet_b0_no_watermark/summary_excl_near_duplicates.json"
+  },
+  {
+   "path": "outputs/evaluation/pre_removal/resnet50/summary_excl_near_duplicates.json",
+   "bytes": 27113,
+   "modified": "2026-10-29T15:31:17",
+   "moved_from": "outputs/evaluation/resnet50/summary_excl_near_duplicates.json"
+  },
+  {
+   "path": "outputs/evaluation/pre_removal/resnet50_no_watermark/summary_excl_near_duplicates.json",
+   "bytes": 26153,
+   "modified": "2026-10-29T15:31:34",
+   "moved_from": "outputs/evaluation/resnet50_no_watermark/summary_excl_near_duplicates.json"
+  },
+  {
+   "path": "outputs/evaluation/pre_removal/efficientnet_b0/near_duplicate_sensitivity.csv",
+   "bytes": 11482,
+   "modified": "2026-10-29T15:31:24",
+   "moved_from": "outputs/evaluation/efficientnet_b0/near_duplicate_sensitivity.csv"
+  },
+  {
+   "path": "outputs/evaluation/pre_removal/efficientnet_b0_no_watermark/near_duplicate_sensitivity.csv",
+   "bytes": 9366,
+   "modified": "2026-10-29T15:31:41",
+   "moved_from": "outputs/evaluation/efficientnet_b0_no_watermark/near_duplicate_sensitivity.csv"
+  },
+  {
+   "path": "outputs/evaluation/pre_removal/resnet50/near_duplicate_sensitivity.csv",
+   "bytes": 11457,
+   "modified": "2026-10-29T15:31:17",
+   "moved_from": "outputs/evaluation/resnet50/near_duplicate_sensitivity.csv"
+  },
+  {
+   "path": "outputs/evaluation/pre_removal/resnet50_no_watermark/near_duplicate_sensitivity.csv",
+   "bytes": 9362,
+   "modified": "2026-10-29T15:31:34",
+   "moved_from": "outputs/evaluation/resnet50_no_watermark/near_duplicate_sensitivity.csv"
+  },
+  {
+   "path": "outputs/data_quality/near_duplicates.csv",
+   "bytes": 20188,
+   "modified": "2026-10-28T09:00:09"
+  },
+  {
+   "path": "outputs/data_quality/near_duplicates_summary.json",
+   "bytes": 758,
+   "modified": "2026-10-28T09:00:09"
+  },
+  {
+   "path": "outputs/data_quality/removed_near_duplicates.csv",
+   "bytes": 14784,
+   "modified": "2026-10-31T09:10:14"
+  },
+  {
+   "path": "outputs/data_quality/removed_near_duplicates_summary.json",
+   "bytes": 480,
+   "modified": "2026-10-31T09:10:14"
+  },
+  {
+   "path": "outputs/data_quality/after_removal/near_duplicates_summary.json",
+   "bytes": 333,
+   "modified": "2026-10-31T09:11:21"
+  },
+  {
+   "path": "outputs/evaluation/adoption/efficientnet_b0/adoption_summary.csv",
+   "bytes": 157449,
+   "modified": "2026-11-02T23:56:54"
+  },
+  {
+   "path": "outputs/evaluation/adoption/resnet50/adoption_summary.csv",
+   "bytes": 157356,
+   "modified": "2026-11-02T23:54:35"
+  },
+  {
+   "path": "outputs/evaluation/adoption/efficientnet_b0/crossover.csv",
+   "bytes": 12067,
+   "modified": "2026-11-02T23:56:54"
+  },
+  {
+   "path": "outputs/evaluation/adoption/resnet50/crossover.csv",
+   "bytes": 12040,
+   "modified": "2026-11-02T23:54:35"
+  },
+  {
+   "path": "outputs/evaluation/external/external_summary.json",
+   "bytes": 633,
+   "modified": "2026-11-03T11:25:49"
+  },
+  {
+   "path": "outputs/evaluation/external/efficientnet_b0/summary.csv",
+   "bytes": 7731,
+   "modified": "2026-11-03T12:38:20"
+  },
+  {
+   "path": "outputs/evaluation/external/efficientnet_b0_no_watermark/summary.csv",
+   "bytes": 6473,
+   "modified": "2026-11-03T12:58:21"
+  },
+  {
+   "path": "outputs/evaluation/external/resnet50/summary.csv",
+   "bytes": 7731,
+   "modified": "2026-11-03T11:51:51"
+  },
+  {
+   "path": "outputs/evaluation/external/resnet50_no_watermark/summary.csv",
+   "bytes": 6472,
+   "modified": "2026-11-03T12:15:24"
+  },
+  {
+   "path": "outputs/evaluation/external/efficientnet_b0/summary.json",
+   "bytes": 28052,
+   "modified": "2026-11-03T12:38:20"
+  },
+  {
+   "path": "outputs/evaluation/external/efficientnet_b0_no_watermark/summary.json",
+   "bytes": 26781,
+   "modified": "2026-11-03T12:58:21"
+  },
+  {
+   "path": "outputs/evaluation/external/resnet50/summary.json",
+   "bytes": 28045,
+   "modified": "2026-11-03T11:51:51"
+  },
+  {
+   "path": "outputs/evaluation/external/resnet50_no_watermark/summary.json",
+   "bytes": 26773,
+   "modified": "2026-11-03T12:15:25"
+  },
+  {
+   "path": "outputs/evaluation/external/efficientnet_b0/watermark_confidence.json",
+   "bytes": 472,
+   "modified": "2026-11-03T12:17:22"
+  },
+  {
+   "path": "outputs/evaluation/external/efficientnet_b0_no_watermark/watermark_confidence.json",
+   "bytes": 85,
+   "modified": "2026-11-03T12:38:25"
+  },
+  {
+   "path": "outputs/evaluation/external/resnet50/watermark_confidence.json",
+   "bytes": 472,
+   "modified": "2026-11-03T11:27:54"
+  },
+  {
+   "path": "outputs/evaluation/external/resnet50_no_watermark/watermark_confidence.json",
+   "bytes": 85,
+   "modified": "2026-11-03T11:51:59"
+  },
+  {
+   "path": "outputs/evaluation/external/report/by_generator.csv",
+   "bytes": 78287,
+   "modified": "2026-11-03T12:58:37"
+  },
+  {
+   "path": "outputs/evaluation/external/report/vs_in_distribution.csv",
+   "bytes": 41784,
+   "modified": "2026-11-03T12:58:37"
+  },
+  {
+   "path": "outputs/gradcam/efficientnet_b0/examples_in_distribution.png",
+   "bytes": 2351382,
+   "modified": "2026-11-03T13:02:34"
+  },
+  {
+   "path": "outputs/gradcam/resnet50/examples_in_distribution.png",
+   "bytes": 2205881,
+   "modified": "2026-11-03T12:58:56"
+  },
+  {
+   "path": "outputs/gradcam/efficientnet_b0/examples_external.png",
+   "bytes": 4679446,
+   "modified": "2026-11-03T13:03:47"
+  },
+  {
+   "path": "outputs/gradcam/resnet50/examples_external.png",
+   "bytes": 4129631,
+   "modified": "2026-11-03T13:00:45"
+  },
+  {
+   "path": "outputs/gradcam/efficientnet_b0/watermark.png",
+   "bytes": 1553533,
+   "modified": "2026-11-03T13:03:36"
+  },
+  {
+   "path": "outputs/gradcam/resnet50/watermark.png",
+   "bytes": 1485781,
+   "modified": "2026-11-03T13:00:31"
+  },
+  {
+   "path": "outputs/gradcam/efficientnet_b0/stability.csv",
+   "bytes": 4658,
+   "modified": "2026-11-03T13:04:47"
+  },
+  {
+   "path": "outputs/gradcam/resnet50/stability.csv",
+   "bytes": 4599,
+   "modified": "2026-11-03T13:02:21"
+  },
+  {
+   "path": "outputs/gradcam/efficientnet_b0/stability_summary.json",
+   "bytes": 10871,
+   "modified": "2026-11-03T13:04:47"
+  },
+  {
+   "path": "outputs/gradcam/resnet50/stability_summary.json",
+   "bytes": 10803,
+   "modified": "2026-11-03T13:02:21"
+  },
+  {
+   "path": "outputs/cv/folds.csv",
+   "bytes": 1247419,
+   "modified": "2026-11-01T14:12:18"
+  },
+  {
+   "path": "outputs/cv/summary_by_fold.csv",
+   "bytes": 79162,
+   "modified": "2026-11-03T08:36:27"
+  },
+  {
+   "path": "outputs/cv/summary_mean_sd.csv",
+   "bytes": 16309,
+   "modified": "2026-11-03T08:36:29"
+  },
+  {
+   "path": "outputs/cv/significance.csv",
+   "bytes": 14716,
+   "modified": "2026-11-03T08:36:29"
+  },
+  {
+   "path": "outputs/cv/cv_report.json",
+   "bytes": 282,
+   "modified": "2026-11-03T08:36:29"
+  },
+  {
+   "path": "outputs/cv/fold_0/summary.csv",
+   "bytes": 15621,
+   "modified": "2026-11-01T14:56:11"
+  },
+  {
+   "path": "outputs/cv/fold_1/summary.csv",
+   "bytes": 15607,
+   "modified": "2026-11-01T15:49:01"
+  },
+  {
+   "path": "outputs/cv/fold_2/summary.csv",
+   "bytes": 16126,
+   "modified": "2026-11-01T16:33:44"
+  },
+  {
+   "path": "outputs/cv/fold_3/summary.csv",
+   "bytes": 16295,
+   "modified": "2026-11-01T17:20:08"
+  },
+  {
+   "path": "outputs/cv/fold_4/summary.csv",
+   "bytes": 15732,
+   "modified": "2026-11-01T18:07:42"
+  },
+  {
+   "path": "outputs/cv/fold_0/watermark.json",
+   "bytes": 182,
+   "modified": "2026-11-01T14:44:21"
+  },
+  {
+   "path": "outputs/cv/fold_1/watermark.json",
+   "bytes": 183,
+   "modified": "2026-11-01T15:36:55"
+  },
+  {
+   "path": "outputs/cv/fold_2/watermark.json",
+   "bytes": 183,
+   "modified": "2026-11-01T16:21:35"
+  },
+  {
+   "path": "outputs/cv/fold_3/watermark.json",
+   "bytes": 183,
+   "modified": "2026-11-01T17:08:14"
+  },
+  {
+   "path": "outputs/cv/fold_4/watermark.json",
+   "bytes": 183,
+   "modified": "2026-11-01T17:55:30"
+  },
+  {
+   "path": "outputs/cv/fold_0/efficientnet_b0/calibration.json",
+   "bytes": 46,
+   "modified": "2026-11-01T14:42:40"
+  },
+  {
+   "path": "outputs/cv/fold_0/resnet50/calibration.json",
+   "bytes": 47,
+   "modified": "2026-11-01T14:26:46"
+  },
+  {
+   "path": "outputs/cv/fold_1/efficientnet_b0/calibration.json",
+   "bytes": 48,
+   "modified": "2026-11-01T15:35:10"
+  },
+  {
+   "path": "outputs/cv/fold_1/resnet50/calibration.json",
+   "bytes": 48,
+   "modified": "2026-11-01T15:18:53"
+  },
+  {
+   "path": "outputs/cv/fold_2/efficientnet_b0/calibration.json",
+   "bytes": 48,
+   "modified": "2026-11-01T16:19:53"
+  },
+  {
+   "path": "outputs/cv/fold_2/resnet50/calibration.json",
+   "bytes": 48,
+   "modified": "2026-11-01T16:03:49"
+  },
+  {
+   "path": "outputs/cv/fold_3/efficientnet_b0/calibration.json",
+   "bytes": 48,
+   "modified": "2026-11-01T17:06:32"
+  },
+  {
+   "path": "outputs/cv/fold_3/resnet50/calibration.json",
+   "bytes": 48,
+   "modified": "2026-11-01T16:50:32"
+  },
+  {
+   "path": "outputs/cv/fold_4/efficientnet_b0/calibration.json",
+   "bytes": 48,
+   "modified": "2026-11-01T17:53:43"
+  },
+  {
+   "path": "outputs/cv/fold_4/resnet50/calibration.json",
+   "bytes": 48,
+   "modified": "2026-11-01T17:37:07"
+  },
+  {
+   "path": "outputs/cv/fold_0/efficientnet_b0/history.json",
+   "bytes": 991,
+   "modified": "2026-11-01T14:42:37"
+  },
+  {
+   "path": "outputs/cv/fold_0/resnet50/history.json",
+   "bytes": 872,
+   "modified": "2026-11-01T14:26:40"
+  },
+  {
+   "path": "outputs/cv/fold_1/efficientnet_b0/history.json",
+   "bytes": 998,
+   "modified": "2026-11-01T15:35:08"
+  },
+  {
+   "path": "outputs/cv/fold_1/resnet50/history.json",
+   "bytes": 872,
+   "modified": "2026-11-01T15:18:48"
+  },
+  {
+   "path": "outputs/cv/fold_2/efficientnet_b0/history.json",
+   "bytes": 996,
+   "modified": "2026-11-01T16:19:51"
+  },
+  {
+   "path": "outputs/cv/fold_2/resnet50/history.json",
+   "bytes": 872,
+   "modified": "2026-11-01T16:03:43"
+  },
+  {
+   "path": "outputs/cv/fold_3/efficientnet_b0/history.json",
+   "bytes": 997,
+   "modified": "2026-11-01T17:06:30"
+  },
+  {
+   "path": "outputs/cv/fold_3/resnet50/history.json",
+   "bytes": 990,
+   "modified": "2026-11-01T16:50:26"
+  },
+  {
+   "path": "outputs/cv/fold_4/efficientnet_b0/history.json",
+   "bytes": 996,
+   "modified": "2026-11-01T17:53:42"
+  },
+  {
+   "path": "outputs/cv/fold_4/resnet50/history.json",
+   "bytes": 996,
+   "modified": "2026-11-01T17:37:01"
+  },
+  {
+   "path": "outputs/splits/train.csv",
+   "bytes": 1740816,
+   "modified": null
+  },
+  {
+   "path": "outputs/splits/val.csv",
+   "bytes": 369346,
+   "modified": null
+  },
+  {
+   "path": "outputs/splits/test.csv",
+   "bytes": 372440,
+   "modified": null
+  }
+ ],
+ "missing": [],
+ "note": "Notebook 05b files were produced on 2026-10-29 with the models trained before the near-duplicate removal (notebook 01c) and retraining on 2026-10-31; they were moved to outputs/evaluation/pre_removal/ so they are not read as results of the final models."
+}

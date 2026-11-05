@@ -1,0 +1,19 @@
+{
+ "folds_done": [
+  0,
+  1,
+  2,
+  3,
+  4
+ ],
+ "k": 5,
+ "alpha": 0.05,
+ "n_tests": 54,
+ "significant_unadjusted": 50,
+ "significant_holm": 40,
+ "significant_corrected": 49,
+ "significant_corrected_holm": 29,
+ "n_train_mean": 13477.0,
+ "n_test_mean": 3964.0,
+ "undefined_tests": 2
+}
